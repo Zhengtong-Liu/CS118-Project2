@@ -1,6 +1,8 @@
 #include <string>
 #include <thread>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -19,13 +21,28 @@ using namespace std;
 int main(int argc, char* argv[])
 {
 	if (argc != 4) {
-		std::cerr << "Usage: " << argv[0] << " <HOSTNAME-OR-IP> <PORT> <FILENAME> " << std::endl;
+		cerr << "Usage: " << argv[0] << " <HOSTNAME-OR-IP> <PORT> <FILENAME> " << endl;
 		return 1;
 	}
 
-	std::string server_ip = argv[1];
-	int port = std::stoi(argv[2]);
-	std::string file_path = argv[3];
+	string server_ip = argv[1];
+	int port = stoi(argv[2]);
+	string file_path = argv[3];
+
+	// store the content of the file in a buffer
+	// reference: https://www.cplusplus.com/doc/tutorial/files/
+	string file_content = "";
+	stringstream buffer;
+	ifstream f (file_path);
+	if (f.is_open()) {
+		buffer << f.rdbuf();
+		file_content = buffer.str();
+		// cout << "file_content: " << file_content;
+		f.close();
+	} else {
+		cerr << "Unable to open file: " << file_path << endl;
+		exit(EXIT_FAILURE);
+	}
 
 	int sock;
 
@@ -43,7 +60,7 @@ int main(int argc, char* argv[])
 	
 	// Convert IP address from string to binary form
 	if( !inet_pton(AF_INET, server_ip.c_str(), &server_addr.sin_addr)){
-		std::cerr << "Wrong IP address" << std::endl;
+		cerr << "Wrong IP address" << endl;
 		exit(EXIT_FAILURE);
 	}
 
@@ -54,19 +71,25 @@ int main(int argc, char* argv[])
 	}
 
 	// construct header
-	Header header { 0 };
+	Header header {{0}};
 	setCharArrFromInt(4, header.sequenceNumber);
 	setCharArrFromInt(233, header.ackNumber);
 	setCharArrFromInt(1024, header.connectionID);
 	header.ACK = 1;
 	header.SYN = 0;
 	header.FIN = 1;
-	char hello_msg [6] = "hello";
+
+	int payload_len = (file_content.empty()) ? 0 : file_content.length();
+	char payload [payload_len+1];
+	memset(payload, 0, sizeof(payload));
+	strcpy(payload, file_content.c_str());
+	payload[payload_len] = 0;
 
 	// construct return message
-	char out_msg [sizeof(hello_msg) + HEADER_SIZE] = {0};
-	ConstructMessage(header, hello_msg, out_msg, sizeof(hello_msg));
-	if ( (ret = send(sock, out_msg, 18, 0)) < 0 ) {
+	char out_msg [sizeof(payload) + HEADER_SIZE];
+	memset(out_msg, 0, sizeof(out_msg));
+	ConstructMessage(header, payload, out_msg, sizeof(payload));
+	if ( (ret = send(sock, out_msg, sizeof(out_msg), 0)) < 0 ) {
 		perror("send");
 		exit(EXIT_FAILURE);
 	}
@@ -79,7 +102,7 @@ int main(int argc, char* argv[])
 	//   exit(EXIT_FAILURE);
 	// }
 
-	// std::cout << "Server: " << buffer << std::endl;
+	// cout << "Server: " << buffer << endl;
 
 	if ( close(sock) < 0 ) {
 		perror("close");

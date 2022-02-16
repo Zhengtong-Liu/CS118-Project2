@@ -1,6 +1,7 @@
 #include <string>
 #include <thread>
 #include <iostream>
+#include <fstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,6 +9,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
@@ -26,7 +28,7 @@ void sig_handler(int sig) {
 			exit(EXIT_FAILURE);
 		}
   	}
-	std::cout << "Good Bye" << std::endl;
+	cout << "Good Bye" << endl;
 	exit(EXIT_SUCCESS);
 }
 
@@ -34,7 +36,7 @@ void sig_handler(int sig) {
 int main(int argc, char* argv[])
 {
   	if (argc != 3) {
-    	std::cerr << "Usage: " << argv[0] << " <PORT> <FILE-DIR> "  << std::endl;
+    	cerr << "Usage: " << argv[0] << " <PORT> <FILE-DIR> "  << endl;
     	return 1;
   	}
 
@@ -42,8 +44,8 @@ int main(int argc, char* argv[])
   	signal(SIGQUIT, sig_handler);
   	signal(SIGTERM, sig_handler);
 
-  	int port = std::stoi(argv[1]);
-  	std::string file_path = argv[2];
+  	int port = stoi(argv[1]);
+  	string file_dir = argv[2];
   
   	// reference: https://www.geeksforgeeks.org/udp-server-client-implementation-c/
   	// create socket fd
@@ -62,10 +64,27 @@ int main(int argc, char* argv[])
 	server_addr.sin_port = htons(port); // port number
 
 	// bind socket
-	if ( bind(sock, (sockaddr *)&server_addr, sizeof(server_addr)) < 0 ) {
+	if ( ::bind(sock, (sockaddr *)&server_addr, sizeof(server_addr)) < 0 ) {
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
+
+	// open directory to save files
+	char dir[BUFFER_SIZE] = {0};
+	if (getcwd(dir, sizeof(dir)) == NULL) {
+		perror("getcwd");
+		exit(EXIT_FAILURE);
+	}
+	strcat(dir, file_dir.c_str());
+	if (mkdir(dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
+		if (errno != EEXIST) {
+			perror("mkdir");
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	// keep track the file id to save
+	int connection_id = 1;
 
 	socklen_t sock_len;
 	int n;
@@ -82,7 +101,7 @@ int main(int argc, char* argv[])
 
 		// Extract header and payload
 		// header
-		Header header { 0 };
+		Header header {{0}};
 		memcpy(header.sequenceNumber, buffer, 4);
 		memcpy(header.ackNumber, buffer + 4, 4);
 		memcpy(header.connectionID, buffer + 8, 2);
@@ -103,8 +122,18 @@ int main(int argc, char* argv[])
 		cout << "FIN: " << header.FIN << endl;
 		cout << "Payload: " << buffer + HEADER_SIZE << endl;
 
-		
-		// std::string hello_msg = "Hello, this is the server";
+		string file_path (dir);
+		file_path += "/" + to_string(connection_id) + ".file";
+
+		ofstream f (file_path);
+		if (f.is_open()) {
+			// cout << file_path << endl;
+			f << buffer + HEADER_SIZE;
+			f.close();
+		} else {
+			cerr << "Unable to open the file: " << file_path << endl;
+		}
+		// string hello_msg = "Hello, this is the server";
 		// if ( (sendto(sock, hello_msg.c_str(), hello_msg.length(), 0, (sockaddr *)&client_addr, sock_len)) < 0)
 		// {
 		//   perror("sendto");
