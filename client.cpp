@@ -10,8 +10,11 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include "helpers.h"
+
 #define BUFFER_SIZE 1024
 
+using namespace std;
 
 int main(int argc, char* argv[])
 {
@@ -50,12 +53,24 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	std::string hello_msg = "hello";
-	if ( (ret = send(sock, hello_msg.c_str(), hello_msg.length(), 0)) < 0 ) {
+	// construct header
+	Header header { 0 };
+	setCharArrFromInt(4, header.sequenceNumber);
+	setCharArrFromInt(233, header.ackNumber);
+	setCharArrFromInt(1024, header.connectionID);
+	header.ACK = 1;
+	header.SYN = 0;
+	header.FIN = 1;
+	char hello_msg [6] = "hello";
+
+	// construct return message
+	char out_msg [sizeof(hello_msg) + HEADER_SIZE] = {0};
+	ConstructMessage(header, hello_msg, out_msg, sizeof(hello_msg));
+	if ( (ret = send(sock, out_msg, 18, 0)) < 0 ) {
 		perror("send");
 		exit(EXIT_FAILURE);
 	}
-
+    
 	// char* buffer[BUFFER_SIZE];
 	// memset(buffer, 0, sizeof(buffer));
 
