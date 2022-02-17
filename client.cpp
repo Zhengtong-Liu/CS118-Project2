@@ -70,14 +70,18 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	// ===========================================================================
+	//	 					3 WAY HANDSHAKE 									
+	// ===========================================================================
+
 	// construct header
 	Header header {{0}};
-	setCharArrFromInt(4, header.sequenceNumber);
-	setCharArrFromInt(233, header.ackNumber);
-	setCharArrFromInt(1024, header.connectionID);
-	header.ACK = 1;
-	header.SYN = 0;
-	header.FIN = 1;
+	setCharArrFromInt(12345, header.sequenceNumber, 4);
+	setCharArrFromInt(0, header.ackNumber, 4);
+	setCharArrFromInt(0, header.connectionID, 2);
+	header.ACK = 0;
+	header.SYN = 1;
+	header.FIN = 0;
 
 	int payload_len = (file_content.empty()) ? 0 : file_content.length();
 	char payload [payload_len+1];
@@ -94,15 +98,15 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
     
-	// char* buffer[BUFFER_SIZE];
-	// memset(buffer, 0, sizeof(buffer));
+	char* buffer[BUFFER_SIZE];
+	memset(buffer, 0, sizeof(buffer));
 
-	// if ( (ret = recv(sock, buffer, BUFFER_SIZE, 0)) < 0 ) {
-	//   perror("recv");
-	//   exit(EXIT_FAILURE);
-	// }
+	if ( (ret = recv(sock, buffer, BUFFER_SIZE, 0)) < 0 ) {
+	  	perror("recv");
+	  	exit(EXIT_FAILURE);
+	}
 
-	// cout << "Server: " << buffer << endl;
+	cout << "Server: " << buffer << endl;
 
 	if ( close(sock) < 0 ) {
 		perror("close");

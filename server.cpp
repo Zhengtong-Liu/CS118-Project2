@@ -17,6 +17,7 @@
 
 #define BUFFER_SIZE 1024
 int sock = -1;
+int connectionCount = 0;
 
 using namespace std;
 
@@ -105,15 +106,23 @@ int main(int argc, char* argv[])
 		memcpy(header.sequenceNumber, buffer, 4);
 		memcpy(header.ackNumber, buffer + 4, 4);
 		memcpy(header.connectionID, buffer + 8, 2);
-		int sequenceNumber = getIntFromCharArr(header.sequenceNumber);
-		int ackNumber = getIntFromCharArr(header.ackNumber);
-		int connectionID = getIntFromCharArr(header.connectionID);
+		int clientSequenceNumber = getIntFromCharArr(header.sequenceNumber);
+		int clientAckNumber = getIntFromCharArr(header.ackNumber);
+		int clientConnectionID = getIntFromCharArr(header.connectionID);
 		// flag bits
 		header.ACK = (buffer[10] & 4) != 0;
 		header.SYN = (buffer[10] & 2) != 0;
 		header.FIN = (buffer[10] & 1) != 0;
 
-		
+		// Receive SYN, establish connection
+		if (header.SYN) {
+			connectionCount ++;
+			setCharArrFromInt(connectionCount, header.connectionID, 2);
+			setCharArrFromInt(clientSequenceNumber + 1, header.ackNumber, 4);
+			setCharArrFromInt(4321, header.sequenceNumber, 4);
+			header.ACK = 1;
+		}
+
 		cout << "sequenceNumber: " << sequenceNumber << endl;
 		cout << "ackNumber: " << ackNumber << endl;
 		cout << "connectionID: " << connectionID << endl;
@@ -133,13 +142,16 @@ int main(int argc, char* argv[])
 		} else {
 			cerr << "Unable to open the file: " << file_path << endl;
 		}
-		// string hello_msg = "Hello, this is the server";
-		// if ( (sendto(sock, hello_msg.c_str(), hello_msg.length(), 0, (sockaddr *)&client_addr, sock_len)) < 0)
-		// {
-		//   perror("sendto");
-		//   continue;
-		// }
 
+		// construct return message
+		char out_msg [sizeof(payload) + HEADER_SIZE];
+		memset(out_msg, 0, sizeof(out_msg));
+		ConstructMessage(header, payload, out_msg, sizeof(payload));
+		if ( (sendto(sock, out_msg, sizeof(out_msg), 0, (sockaddr *)&client_addr, sock_len)) < 0)
+		{
+		  	perror("sendto");
+		  	continue;
+		}
 	}
 
 	return 0;
