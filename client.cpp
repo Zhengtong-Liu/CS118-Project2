@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
 	}
 
 	string server_ip = argv[1];
-	int port = stoi(argv[2]);
+	int port = safeportSTOI(argv[2]);
 	string file_path = argv[3];
 	//==========================================FileIO=============================
 	// store the content of the file in a buffer
@@ -77,12 +77,9 @@ int main(int argc, char* argv[])
 	Header curHeader {{0}};
 
 	// =========================== SYN =====================================
-	setCharArrFromInt(12345, curHeader.sequenceNumber, 4);
-	setCharArrFromInt(0, curHeader.ackNumber, 4);
-	setCharArrFromInt(0, curHeader.connectionID, 2);
-	int clientSequenceNumber = getIntFromCharArr(curHeader.sequenceNumber);
-	int clientAckNumber = getIntFromCharArr(curHeader.ackNumber);
-	int clientConnectionID = getIntFromCharArr(curHeader.connectionID);
+	curHeader.sequenceNumber = 12345;
+	curHeader.ackNumber = 0;
+	curHeader.connectionID = 0;
 	curHeader.ACK = 0;
 	curHeader.SYN = 1;
 	curHeader.FIN = 0;
@@ -108,18 +105,16 @@ int main(int argc, char* argv[])
 			perror("recv");
 			exit(EXIT_FAILURE);
 		}
-		DeconstructMessage(curHeader, payload, msgBuffer);
+		DeconstructMessage(curHeader, msgBuffer);
 		if (prevHeader.SYN && curHeader.SYN && curHeader.ACK) {
-			
+			curHeader.SYN = 0;
+			curHeader.ACK = 1;
+			curHeader.FIN = 0;
+			curHeader.ackNumber = curHeader.sequenceNumber;
+			curHeader.sequenceNumber = 12346;
 		}
 		
-		cout << "sequenceNumber: " << clientSequenceNumber << endl;
-		cout << "ackNumber: " << clientAckNumber << endl;
-		cout << "connectionID: " << clientConnectionID << endl;
-		cout << "ACK: " << curHeader.ACK << endl;
-		cout << "SYN: " << curHeader.SYN << endl;
-		cout << "FIN: " << curHeader.FIN << endl;
-		cout << "Payload: " << msgBuffer + HEADER_SIZE << endl;
+		outputMessage(curHeader, true);
 
 		int payload_len = (file_content.empty()) ? 0 : file_content.length();
 		strcpy(payload, file_content.c_str());
