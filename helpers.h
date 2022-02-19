@@ -54,3 +54,15 @@ void ConstructMessage(Header header, char * payload, char * buffer, int payloadS
 	if (payload)
 		memcpy(buffer + HEADER_SIZE, payload, payloadSize);
 }
+
+// deconstruct whole message into header and payload
+void DeconstructMessage(Header header, char * payload, char * buffer) {
+    memcpy(header.sequenceNumber, buffer, 4);
+	memcpy(header.ackNumber, buffer + 4, 4);
+	memcpy(header.connectionID, buffer + 8, 2);
+	header.ACK = (buffer[10] & 4) != 0;
+	header.SYN = (buffer[10] & 2) != 0;
+	header.FIN = (buffer[10] & 1) != 0;
+	if (sizeof(buffer) > HEADER_SIZE)
+		memcpy(payload, buffer + HEADER_SIZE, sizeof(buffer) - HEADER_SIZE);
+}

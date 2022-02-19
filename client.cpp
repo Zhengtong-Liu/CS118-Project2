@@ -75,7 +75,8 @@ int main(int argc, char* argv[])
 	// ===========================================================================
 
 	// construct header
-	Header header {{0}};
+	Header prevHeader {{0}};
+	Header curHeader {{0}};
 	setCharArrFromInt(12345, header.sequenceNumber, 4);
 	setCharArrFromInt(0, header.ackNumber, 4);
 	setCharArrFromInt(0, header.connectionID, 2);
@@ -88,25 +89,29 @@ int main(int argc, char* argv[])
 	memset(payload, 0, sizeof(payload));
 	strcpy(payload, file_content.c_str());
 	payload[payload_len] = 0;
-	
+
 	// construct return message
 	char out_msg [sizeof(payload) + HEADER_SIZE];
 	memset(out_msg, 0, sizeof(out_msg));
-	ConstructMessage(header, payload, out_msg, sizeof(payload));
+	ConstructMessage(header, NULL, out_msg, 0);
 	if ( (ret = send(sock, out_msg, sizeof(out_msg), 0)) < 0 ) {
 		perror("send");
 		exit(EXIT_FAILURE);
 	}
     
-	char* buffer[BUFFER_SIZE];
-	memset(buffer, 0, sizeof(buffer));
+	char msgBuffer[BUFFER_SIZE];
+	memset(msgBuffer, 0, sizeof(msgBuffer));
 
-	if ( (ret = recv(sock, buffer, BUFFER_SIZE, 0)) < 0 ) {
+	if ( (ret = recv(sock, msgBuffer, BUFFER_SIZE, 0)) < 0 ) {
 	  	perror("recv");
 	  	exit(EXIT_FAILURE);
 	}
-
-	cout << "Server: " << buffer << endl;
+	 
+	DeconstructMessage(header, payload, msgBuffer)
+	if (header.SYN && header.ACK) {
+		
+	}
+	cout << "Server: " << msgBuffer << endl;
 
 	if ( close(sock) < 0 ) {
 		perror("close");
