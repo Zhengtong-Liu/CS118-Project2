@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
 	string server_ip = argv[1];
 	int port = stoi(argv[2]);
 	string file_path = argv[3];
-
+	//==========================================FileIO=============================
 	// store the content of the file in a buffer
 	// reference: https://www.cplusplus.com/doc/tutorial/files/
 	string file_content = "";
@@ -43,7 +43,8 @@ int main(int argc, char* argv[])
 		cerr << "Unable to open file: " << file_path << endl;
 		exit(EXIT_FAILURE);
 	}
-
+	//==========================================FileIO-END=============================
+	//==========================================SocketCreation=============================
 	int sock;
 
 	// create socket fd
@@ -69,29 +70,25 @@ int main(int argc, char* argv[])
 		perror("connect");
 		exit(EXIT_FAILURE);
 	}
-
-	// ===========================================================================
-	//	 					3 WAY HANDSHAKE 									
-	// ===========================================================================
+	//==========================================SocketCreation-END=============================
 
 	// construct header
 	Header prevHeader {{0}};
 	Header curHeader {{0}};
-	setCharArrFromInt(12345, header.sequenceNumber, 4);
-	setCharArrFromInt(0, header.ackNumber, 4);
-	setCharArrFromInt(0, header.connectionID, 2);
-	header.ACK = 0;
-	header.SYN = 1;
-	header.FIN = 0;
 
-	int payload_len = (file_content.empty()) ? 0 : file_content.length();
-	char payload [payload_len+1];
+	// =========================== SYN =====================================
+	setCharArrFromInt(12345, curHeader.sequenceNumber, 4);
+	setCharArrFromInt(0, curHeader.ackNumber, 4);
+	setCharArrFromInt(0, curHeader.connectionID, 2);
+	curHeader.ACK = 0;
+	curHeader.SYN = 1;
+	curHeader.FIN = 0;
+
+	char payload [MAX_PAYLOAD_SIZE];
 	memset(payload, 0, sizeof(payload));
-	strcpy(payload, file_content.c_str());
-	payload[payload_len] = 0;
 
 	// construct return message
-	char out_msg [sizeof(payload) + HEADER_SIZE];
+	char out_msg [HEADER_SIZE];
 	memset(out_msg, 0, sizeof(out_msg));
 	ConstructMessage(header, NULL, out_msg, 0);
 	if ( (ret = send(sock, out_msg, sizeof(out_msg), 0)) < 0 ) {
@@ -100,22 +97,26 @@ int main(int argc, char* argv[])
 	}
     
 	char msgBuffer[BUFFER_SIZE];
-	memset(msgBuffer, 0, sizeof(msgBuffer));
+	prevHeader = curHeader;
 
-	if ( (ret = recv(sock, msgBuffer, BUFFER_SIZE, 0)) < 0 ) {
-	  	perror("recv");
-	  	exit(EXIT_FAILURE);
-	}
-	 
-	DeconstructMessage(header, payload, msgBuffer)
-	if (header.SYN && header.ACK) {
-		
-	}
-	cout << "Server: " << msgBuffer << endl;
+	while (1) {
+		memset(msgBuffer, 0, BUFFER_SIZE);
+		if ( (ret = recv(sock, msgBuffer, BUFFER_SIZE, 0)) < 0 ) {
+			perror("recv");
+			exit(EXIT_FAILURE);
+		}
+		DeconstructMessage(curHeader, payload, msgBuffer);
+		if (prevHeader.SYN && curHeader.SYN && curHeader.ACK) {
+			int payload_len = (file_content.empty()) ? 0 : file_content.length();
+			strcpy(payload, file_content.c_str());
+			payload[payload_len] = 0;
+		}
+		cout << "Server: " << msgBuffer << endl;
 
-	if ( close(sock) < 0 ) {
-		perror("close");
-		exit(EXIT_FAILURE);
+		if ( close(sock) < 0 ) {
+			perror("close");
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	return 0;

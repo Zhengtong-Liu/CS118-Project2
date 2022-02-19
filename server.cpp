@@ -38,6 +38,7 @@ void sig_handler(int sig) {
 
 int main(int argc, char* argv[])
 {
+	//==========================================InputProcess=============================
   	if (argc != 3) {
     	cerr << "Usage: " << argv[0] << " <PORT> <FILE-DIR> "  << endl;
     	return 1;
@@ -46,10 +47,10 @@ int main(int argc, char* argv[])
   	signal(SIGINT, sig_handler);
   	signal(SIGQUIT, sig_handler);
   	signal(SIGTERM, sig_handler);
-
+    
   	int port = stoi(argv[1]);
   	string file_dir = argv[2];
-  
+	//==========================================InputProcess-END=============================
   	// reference: https://www.geeksforgeeks.org/udp-server-client-implementation-c/
   	// create socket fd
   	if ( (sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
