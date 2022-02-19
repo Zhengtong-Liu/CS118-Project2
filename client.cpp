@@ -80,6 +80,9 @@ int main(int argc, char* argv[])
 	setCharArrFromInt(12345, curHeader.sequenceNumber, 4);
 	setCharArrFromInt(0, curHeader.ackNumber, 4);
 	setCharArrFromInt(0, curHeader.connectionID, 2);
+	int clientSequenceNumber = getIntFromCharArr(curHeader.sequenceNumber);
+	int clientAckNumber = getIntFromCharArr(curHeader.ackNumber);
+	int clientConnectionID = getIntFromCharArr(curHeader.connectionID);
 	curHeader.ACK = 0;
 	curHeader.SYN = 1;
 	curHeader.FIN = 0;
@@ -107,19 +110,20 @@ int main(int argc, char* argv[])
 		}
 		DeconstructMessage(curHeader, payload, msgBuffer);
 		if (prevHeader.SYN && curHeader.SYN && curHeader.ACK) {
-			int payload_len = (file_content.empty()) ? 0 : file_content.length();
-			strcpy(payload, file_content.c_str());
-			payload[payload_len] = 0;
+			
 		}
 		
 		cout << "sequenceNumber: " << clientSequenceNumber << endl;
 		cout << "ackNumber: " << clientAckNumber << endl;
 		cout << "connectionID: " << clientConnectionID << endl;
-		cout << "ACK: " << header.ACK << endl;
-		cout << "SYN: " << header.SYN << endl;
-		cout << "FIN: " << header.FIN << endl;
-		cout << "Payload: " << buffer + HEADER_SIZE << endl;
+		cout << "ACK: " << curHeader.ACK << endl;
+		cout << "SYN: " << curHeader.SYN << endl;
+		cout << "FIN: " << curHeader.FIN << endl;
+		cout << "Payload: " << msgBuffer + HEADER_SIZE << endl;
 
+		int payload_len = (file_content.empty()) ? 0 : file_content.length();
+		strcpy(payload, file_content.c_str());
+		payload[payload_len] = 0;
 	}
 
 	if ( close(sock) < 0 ) {

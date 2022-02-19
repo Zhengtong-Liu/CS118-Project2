@@ -115,6 +115,7 @@ int main(int argc, char* argv[])
 		int clientSequenceNumber = getIntFromCharArr(header.sequenceNumber);
 		int clientAckNumber = getIntFromCharArr(header.ackNumber);
 		int clientConnectionID = getIntFromCharArr(header.connectionID);
+		int payloadLength = strlen(buffer + HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
 
 		// flag bits
 		header.ACK = (buffer[10] & 4) != 0;

@@ -34,7 +34,7 @@ int safeportSTOI(string stringnumber)
 		cerr << "Error: Port number not valid: shoud be between 0 - 65535" << endl;
 		exit(EXIT_FAILURE);
 	}
-	return stringnumber
+	return result;
 }
 
 // convert char array to int
