@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
 		int clientSequenceNumber = getIntFromCharArr(header.sequenceNumber);
 		int clientAckNumber = getIntFromCharArr(header.ackNumber);
 		int clientConnectionID = getIntFromCharArr(header.connectionID);
-		int payloadLength = strlen(buffer + HEADER_SIZE); // not consider payload that has '\0' in it
+		
 		// flag bits
 		header.ACK = (buffer[10] & 4) != 0;
 		header.SYN = (buffer[10] & 2) != 0;
@@ -152,13 +152,7 @@ int main(int argc, char* argv[])
 			header.ACK = 1;
 		}
 
-		cout << "sequenceNumber: " << clientSequenceNumber << endl;
-		cout << "ackNumber: " << clientAckNumber << endl;
-		cout << "connectionID: " << clientConnectionID << endl;
-		cout << "ACK: " << header.ACK << endl;
-		cout << "SYN: " << header.SYN << endl;
-		cout << "FIN: " << header.FIN << endl;
-		cout << "Payload: " << buffer + HEADER_SIZE << endl;
+		outputDebugMsg(header, buffer);
 
 		string file_path (dir);
 		file_path += "/" + to_string(connectionCount) + ".file";

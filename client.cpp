@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 	// construct return message
 	char out_msg [HEADER_SIZE];
 	memset(out_msg, 0, sizeof(out_msg));
-	ConstructMessage(header, NULL, out_msg, 0);
+	ConstructMessage(curHeader, NULL, out_msg, 0);
 	if ( (ret = send(sock, out_msg, sizeof(out_msg), 0)) < 0 ) {
 		perror("send");
 		exit(EXIT_FAILURE);
@@ -111,12 +111,14 @@ int main(int argc, char* argv[])
 			strcpy(payload, file_content.c_str());
 			payload[payload_len] = 0;
 		}
-		cout << "Server: " << msgBuffer << endl;
+		
+		outputDebugMsg(header, buffer);
 
-		if ( close(sock) < 0 ) {
-			perror("close");
-			exit(EXIT_FAILURE);
-		}
+	}
+
+	if ( close(sock) < 0 ) {
+		perror("close");
+		exit(EXIT_FAILURE);
 	}
 
 	return 0;

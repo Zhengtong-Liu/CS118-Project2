@@ -1,6 +1,8 @@
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
 
+using namespace std;
+
 // Struct that stores header fields
 struct Header {
 	char sequenceNumber [4];
@@ -65,4 +67,14 @@ void DeconstructMessage(Header header, char * payload, char * buffer) {
 	header.FIN = (buffer[10] & 1) != 0;
 	if (sizeof(buffer) > HEADER_SIZE)
 		memcpy(payload, buffer + HEADER_SIZE, sizeof(buffer) - HEADER_SIZE);
+}
+
+void outputDebugMsg(Header header, char * buffer) {
+	cout << "sequenceNumber: " << clientSequenceNumber << endl;
+	cout << "ackNumber: " << clientAckNumber << endl;
+	cout << "connectionID: " << clientConnectionID << endl;
+	cout << "ACK: " << header.ACK << endl;
+	cout << "SYN: " << header.SYN << endl;
+	cout << "FIN: " << header.FIN << endl;
+	cout << "Payload: " << buffer + HEADER_SIZE << endl;
 }
