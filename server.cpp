@@ -134,7 +134,8 @@ int main(int argc, char* argv[])
 			setCharArrFromInt(connectionCount, header.connectionID, 2);
 			setCharArrFromInt(clientSequenceNumber + 1, header.ackNumber, 4);
 			// [NOT SURE] For FIN ACK, set seq # to previous seq #
-			setCharArrFromInt(client_status[connectionCount].sequenceNumber, header.sequenceNumber, 4);
+			int tmp_sequenceNumber = getIntFromCharArr(client_status[connectionCount].sequenceNumber);
+			setCharArrFromInt(tmp_sequenceNumber, header.sequenceNumber, 4);
 			header.ACK = 1;
 
 			// in the case of FIN, needs to send additional FIN packet
