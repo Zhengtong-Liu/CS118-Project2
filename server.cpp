@@ -12,10 +12,12 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <unordered_map>
 
 #include "helpers.h"
 
 #define BUFFER_SIZE 1024
+#define INITIAL_SEQ 4321
 int sock = -1;
 int connectionCount = 0;
 
@@ -84,13 +86,14 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	// keep track the file id to save
-	int connection_id = 1;
-
 	socklen_t sock_len;
 	int n;
 	char buffer[BUFFER_SIZE];
 	memset(&buffer, 0, sizeof(buffer));
+	// Header previous_header {{0}};
+
+	unordered_map<int, Header> client_status;
+
 	while (1) {
 		sock_len = sizeof(client_addr);
 		if ( (n = recvfrom(sock, (char *) buffer, BUFFER_SIZE, 0, (sockaddr *)&client_addr, &sock_len)) < 0 )
@@ -103,12 +106,15 @@ int main(int argc, char* argv[])
 		// Extract header and payload
 		// header
 		Header header {{0}};
+		Header fin_header {{0}};
+
 		memcpy(header.sequenceNumber, buffer, 4);
 		memcpy(header.ackNumber, buffer + 4, 4);
 		memcpy(header.connectionID, buffer + 8, 2);
 		int clientSequenceNumber = getIntFromCharArr(header.sequenceNumber);
 		int clientAckNumber = getIntFromCharArr(header.ackNumber);
 		int clientConnectionID = getIntFromCharArr(header.connectionID);
+		int payloadLength = strlen(buffer + HEADER_SIZE); // not consider payload that has '\0' in it
 		// flag bits
 		header.ACK = (buffer[10] & 4) != 0;
 		header.SYN = (buffer[10] & 2) != 0;
@@ -119,22 +125,44 @@ int main(int argc, char* argv[])
 			connectionCount ++;
 			setCharArrFromInt(connectionCount, header.connectionID, 2);
 			setCharArrFromInt(clientSequenceNumber + 1, header.ackNumber, 4);
-			setCharArrFromInt(4321, header.sequenceNumber, 4);
+			setCharArrFromInt(INITIAL_SEQ, header.sequenceNumber, 4);
+			header.ACK = 1;
+			header.SYN = 1;
+		}
+		else if (header.FIN) {
+			setCharArrFromInt(connectionCount, header.connectionID, 2);
+			setCharArrFromInt(clientSequenceNumber + 1, header.ackNumber, 4);
+			// [NOT SURE] For FIN ACK, set seq # to previous seq #
+			setCharArrFromInt(client_status[connectionCount].sequenceNumber, header.sequenceNumber, 4);
+			header.ACK = 1;
+
+			// in the case of FIN, needs to send additional FIN packet
+			fin_header = header;
+
+			setCharArrFromInt(0, fin_header.ackNumber, 4);
+			fin_header.ACK = 0;
+			fin_header.FIN = 1;
+
+		} else {
+			setCharArrFromInt(connectionCount, header.connectionID, 2);
+			setCharArrFromInt(clientSequenceNumber + payloadLength, header.ackNumber, 4);
+			setCharArrFromInt(clientAckNumber, header.sequenceNumber, 4);
 			header.ACK = 1;
 		}
 
-		cout << "sequenceNumber: " << sequenceNumber << endl;
-		cout << "ackNumber: " << ackNumber << endl;
-		cout << "connectionID: " << connectionID << endl;
+		cout << "sequenceNumber: " << clientSequenceNumber << endl;
+		cout << "ackNumber: " << clientAckNumber << endl;
+		cout << "connectionID: " << clientConnectionID << endl;
 		cout << "ACK: " << header.ACK << endl;
 		cout << "SYN: " << header.SYN << endl;
 		cout << "FIN: " << header.FIN << endl;
 		cout << "Payload: " << buffer + HEADER_SIZE << endl;
 
 		string file_path (dir);
-		file_path += "/" + to_string(connection_id) + ".file";
+		file_path += "/" + to_string(connectionCount) + ".file";
 
-		ofstream f (file_path);
+		ofstream f;
+		f.open(file_path, ios_base::app); // append to file if exist
 		if (f.is_open()) {
 			// cout << file_path << endl;
 			f << buffer + HEADER_SIZE;
@@ -144,14 +172,28 @@ int main(int argc, char* argv[])
 		}
 
 		// construct return message
-		char out_msg [sizeof(payload) + HEADER_SIZE];
+		char out_msg [HEADER_SIZE];
 		memset(out_msg, 0, sizeof(out_msg));
-		ConstructMessage(header, payload, out_msg, sizeof(payload));
+
+		ConstructMessage(header, NULL, out_msg, 0);
 		if ( (sendto(sock, out_msg, sizeof(out_msg), 0, (sockaddr *)&client_addr, sock_len)) < 0)
 		{
 		  	perror("sendto");
 		  	continue;
 		}
+
+		if (header.FIN)
+		{
+			memset(out_msg, 0, sizeof(out_msg));
+			ConstructMessage(fin_header, NULL, out_msg, 0);
+			if ( (sendto(sock, out_msg, sizeof(out_msg), 0, (sockaddr *)&client_addr, sock_len)) < 0)
+			{
+				perror("sendto");
+				continue;
+			}
+		}
+
+		client_status[connectionCount] = header;
 	}
 
 	return 0;
