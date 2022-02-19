@@ -112,7 +112,13 @@ int main(int argc, char* argv[])
 			payload[payload_len] = 0;
 		}
 		
-		outputDebugMsg(header, buffer);
+		cout << "sequenceNumber: " << clientSequenceNumber << endl;
+		cout << "ackNumber: " << clientAckNumber << endl;
+		cout << "connectionID: " << clientConnectionID << endl;
+		cout << "ACK: " << header.ACK << endl;
+		cout << "SYN: " << header.SYN << endl;
+		cout << "FIN: " << header.FIN << endl;
+		cout << "Payload: " << buffer + HEADER_SIZE << endl;
 
 	}
 

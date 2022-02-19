@@ -92,13 +92,3 @@ void DeconstructMessage(Header header, char * payload, char * buffer) {
 	if (sizeof(buffer) > HEADER_SIZE)
 		memcpy(payload, buffer + HEADER_SIZE, sizeof(buffer) - HEADER_SIZE);
 }
-
-void outputDebugMsg(Header header, char * buffer) {
-	cout << "sequenceNumber: " << clientSequenceNumber << endl;
-	cout << "ackNumber: " << clientAckNumber << endl;
-	cout << "connectionID: " << clientConnectionID << endl;
-	cout << "ACK: " << header.ACK << endl;
-	cout << "SYN: " << header.SYN << endl;
-	cout << "FIN: " << header.FIN << endl;
-	cout << "Payload: " << buffer + HEADER_SIZE << endl;
-}

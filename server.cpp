@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
   	signal(SIGQUIT, sig_handler);
   	signal(SIGTERM, sig_handler);
     
-  	int port = stoi(argv[1]);
+  	int port = safeportSTOI(argv[1]);
   	string file_dir = argv[2];
 	//==========================================InputProcess-END=============================
   	// reference: https://www.geeksforgeeks.org/udp-server-client-implementation-c/
@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
 		int clientSequenceNumber = getIntFromCharArr(header.sequenceNumber);
 		int clientAckNumber = getIntFromCharArr(header.ackNumber);
 		int clientConnectionID = getIntFromCharArr(header.connectionID);
-		
+
 		// flag bits
 		header.ACK = (buffer[10] & 4) != 0;
 		header.SYN = (buffer[10] & 2) != 0;
@@ -152,7 +152,13 @@ int main(int argc, char* argv[])
 			header.ACK = 1;
 		}
 
-		outputDebugMsg(header, buffer);
+		cout << "sequenceNumber: " << clientSequenceNumber << endl;
+		cout << "ackNumber: " << clientAckNumber << endl;
+		cout << "connectionID: " << clientConnectionID << endl;
+		cout << "ACK: " << header.ACK << endl;
+		cout << "SYN: " << header.SYN << endl;
+		cout << "FIN: " << header.FIN << endl;
+		cout << "Payload: " << buffer + HEADER_SIZE << endl;
 
 		string file_path (dir);
 		file_path += "/" + to_string(connectionCount) + ".file";
