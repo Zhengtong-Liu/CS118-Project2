@@ -1,4 +1,5 @@
 #define HEADER_SIZE 12
+#define MAX_PAYLOAD_SIZE 512
 
 // Struct that stores header fields
 struct Header {
@@ -50,5 +51,6 @@ void ConstructMessage(Header header, char * payload, char * buffer, int payloadS
 	char flagBit = 0;
 	flagBit |= (header.ACK << 2 | header.SYN << 1 | header.FIN);
 	buffer[10] = flagBit;
-	memcpy(buffer + HEADER_SIZE, payload, payloadSize);
+	if (payload)
+		memcpy(buffer + HEADER_SIZE, payload, payloadSize);
 }

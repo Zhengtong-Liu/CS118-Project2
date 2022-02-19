@@ -88,7 +88,7 @@ int main(int argc, char* argv[])
 	memset(payload, 0, sizeof(payload));
 	strcpy(payload, file_content.c_str());
 	payload[payload_len] = 0;
-
+	
 	// construct return message
 	char out_msg [sizeof(payload) + HEADER_SIZE];
 	memset(out_msg, 0, sizeof(out_msg));
