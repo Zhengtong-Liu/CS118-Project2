@@ -4,9 +4,9 @@
 using namespace std;
 // Struct that stores header fields
 struct Header {
-	char sequenceNumber [4];
-	char ackNumber [4];
-	char connectionID [2];
+	int sequenceNumber;
+	int ackNumber;
+	int connectionID;
 	int ACK;
 	int SYN;
 	int FIN;
@@ -34,15 +34,15 @@ int safeportSTOI(string stringnumber)
 		cerr << "Error: Port number not valid: shoud be between 0 - 65535" << endl;
 		exit(EXIT_FAILURE);
 	}
-	return stringnumber
+	return result;
 }
 
 // convert char array to int
 // e.g.: 00000010 -> 4
-int getIntFromCharArr (char * arr) {
+int getIntFromCharArr (char * arr, int size) {
 	int magnitude = 1;
 	int num = 0;
-	for (int i = 0; i < int(sizeof(arr)); i++) {
+	for (int i = 0; i < int(size); i++) {
 		for (int j = 0; j < 8; j++) {
 			if ((*(arr + i) & (1 << j)) != 0)
 				num += magnitude;
@@ -71,9 +71,9 @@ void setCharArrFromInt(int num, char * arr, int n_bytes) {
 
 // construct whole message from header and payload into buffer
 void ConstructMessage(Header header, char * payload, char * buffer, int payloadSize) {
-    memcpy(buffer, header.sequenceNumber, 4);
-	memcpy(buffer + 4, header.ackNumber, 4);
-	memcpy(buffer + 8, header.connectionID, 2);
+	setCharArrFromInt(header.sequenceNumber, buffer, 4);
+	setCharArrFromInt(header.ackNumber, buffer + 4, 4);
+	setCharArrFromInt(header.connectionID, buffer + 8, 2);
 	char flagBit = 0;
 	flagBit |= (header.ACK << 2 | header.SYN << 1 | header.FIN);
 	buffer[10] = flagBit;
@@ -82,13 +82,25 @@ void ConstructMessage(Header header, char * payload, char * buffer, int payloadS
 }
 
 // deconstruct whole message into header and payload
-void DeconstructMessage(Header header, char * payload, char * buffer) {
-    memcpy(header.sequenceNumber, buffer, 4);
-	memcpy(header.ackNumber, buffer + 4, 4);
-	memcpy(header.connectionID, buffer + 8, 2);
+void DeconstructMessage(Header header, char * buffer) {
+    header.sequenceNumber = getIntFromCharArr(buffer, 4);
+	header.ackNumber = getIntFromCharArr(buffer + 4, 4);
+	header.connectionID = getIntFromCharArr(buffer + 8, 2);
 	header.ACK = (buffer[10] & 4) != 0;
 	header.SYN = (buffer[10] & 2) != 0;
 	header.FIN = (buffer[10] & 1) != 0;
-	if (sizeof(buffer) > HEADER_SIZE)
-		memcpy(payload, buffer + HEADER_SIZE, sizeof(buffer) - HEADER_SIZE);
+}
+
+// output debug message to std::out
+void outputMessage(Header header, bool isClient) {
+	cout << "RECV " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
+	if (isClient) 
+		cout << " " << 0 << " " << 0;
+	if (header.ACK)
+		cout << " ACK";
+	if (header.SYN)
+		cout << " SYN";
+	if (header.FIN)
+		cout << " FIN";
+	cout << endl;
 }

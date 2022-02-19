@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
   	signal(SIGQUIT, sig_handler);
   	signal(SIGTERM, sig_handler);
     
-  	int port = safeportSTOI(argv[1]);
+  	int port = safeportSTOI((argv[1]));
   	string file_dir = argv[2];
 	//==========================================InputProcess-END=============================
   	// reference: https://www.geeksforgeeks.org/udp-server-client-implementation-c/
@@ -110,12 +110,8 @@ int main(int argc, char* argv[])
 		Header header {{0}};
 		Header fin_header {{0}};
 
-		memcpy(header.sequenceNumber, buffer, 4);
-		memcpy(header.ackNumber, buffer + 4, 4);
-		memcpy(header.connectionID, buffer + 8, 2);
-		int clientSequenceNumber = getIntFromCharArr(header.sequenceNumber);
-		int clientAckNumber = getIntFromCharArr(header.ackNumber);
-		int clientConnectionID = getIntFromCharArr(header.connectionID);
+		DeconstructMessage(header, buffer);
+		int payloadLength = strlen(buffer + HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
 
 		// flag bits
 		header.ACK = (buffer[10] & 4) != 0;
@@ -125,41 +121,34 @@ int main(int argc, char* argv[])
 		// Receive SYN, establish connection
 		if (header.SYN) {
 			connectionCount ++;
-			setCharArrFromInt(connectionCount, header.connectionID, 2);
-			setCharArrFromInt(clientSequenceNumber + 1, header.ackNumber, 4);
-			setCharArrFromInt(INITIAL_SEQ, header.sequenceNumber, 4);
+			header.connectionID = connectionCount;
+			header.ackNumber = header.sequenceNumber + 1;
+			header.sequenceNumber  = INITIAL_SEQ;
 			header.ACK = 1;
 			header.SYN = 1;
 		}
 		else if (header.FIN) {
-			setCharArrFromInt(connectionCount, header.connectionID, 2);
-			setCharArrFromInt(clientSequenceNumber + 1, header.ackNumber, 4);
+			header.connectionID = connectionCount;
+			header.ackNumber = header.sequenceNumber + 1;
 			// [NOT SURE] For FIN ACK, set seq # to previous seq #
-			int tmp_sequenceNumber = getIntFromCharArr(client_status[connectionCount].sequenceNumber);
-			setCharArrFromInt(tmp_sequenceNumber, header.sequenceNumber, 4);
+			header.sequenceNumber = client_status[connectionCount].sequenceNumber;
 			header.ACK = 1;
 
 			// in the case of FIN, needs to send additional FIN packet
 			fin_header = header;
 
-			setCharArrFromInt(0, fin_header.ackNumber, 4);
+			fin_header.ackNumber = 0;
 			fin_header.ACK = 0;
 			fin_header.FIN = 1;
 
 		} else {
-			setCharArrFromInt(connectionCount, header.connectionID, 2);
-			setCharArrFromInt(clientSequenceNumber + payloadLength, header.ackNumber, 4);
-			setCharArrFromInt(clientAckNumber, header.sequenceNumber, 4);
+			int clientAckNumber = header.ackNumber;
+			header.ackNumber = header.sequenceNumber + payloadLength;
+			header.sequenceNumber = clientAckNumber;
 			header.ACK = 1;
 		}
 
-		cout << "sequenceNumber: " << clientSequenceNumber << endl;
-		cout << "ackNumber: " << clientAckNumber << endl;
-		cout << "connectionID: " << clientConnectionID << endl;
-		cout << "ACK: " << header.ACK << endl;
-		cout << "SYN: " << header.SYN << endl;
-		cout << "FIN: " << header.FIN << endl;
-		cout << "Payload: " << buffer + HEADER_SIZE << endl;
+		outputMessage(header, false);
 
 		string file_path (dir);
 		file_path += "/" + to_string(connectionCount) + ".file";
