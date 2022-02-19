@@ -38,6 +38,7 @@ void sig_handler(int sig) {
 
 int main(int argc, char* argv[])
 {
+	//==========================================InputProcess=============================
   	if (argc != 3) {
     	cerr << "Usage: " << argv[0] << " <PORT> <FILE-DIR> "  << endl;
     	return 1;
@@ -46,10 +47,10 @@ int main(int argc, char* argv[])
   	signal(SIGINT, sig_handler);
   	signal(SIGQUIT, sig_handler);
   	signal(SIGTERM, sig_handler);
-
-  	int port = stoi(argv[1]);
+    
+  	int port = safeportSTOI(argv[1]);
   	string file_dir = argv[2];
-  
+	//==========================================InputProcess-END=============================
   	// reference: https://www.geeksforgeeks.org/udp-server-client-implementation-c/
   	// create socket fd
   	if ( (sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
@@ -96,6 +97,7 @@ int main(int argc, char* argv[])
 
 	while (1) {
 		sock_len = sizeof(client_addr);
+		
 		if ( (n = recvfrom(sock, (char *) buffer, BUFFER_SIZE, 0, (sockaddr *)&client_addr, &sock_len)) < 0 )
 		{
 			perror("recvfrom");
@@ -114,7 +116,7 @@ int main(int argc, char* argv[])
 		int clientSequenceNumber = getIntFromCharArr(header.sequenceNumber);
 		int clientAckNumber = getIntFromCharArr(header.ackNumber);
 		int clientConnectionID = getIntFromCharArr(header.connectionID);
-		int payloadLength = strlen(buffer + HEADER_SIZE); // not consider payload that has '\0' in it
+
 		// flag bits
 		header.ACK = (buffer[10] & 4) != 0;
 		header.SYN = (buffer[10] & 2) != 0;
