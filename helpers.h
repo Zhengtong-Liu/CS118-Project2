@@ -1,8 +1,7 @@
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
-
+#include <string.h>
 using namespace std;
-
 // Struct that stores header fields
 struct Header {
 	char sequenceNumber [4];
@@ -12,6 +11,31 @@ struct Header {
 	int SYN;
 	int FIN;
 };
+
+int safeportSTOI(string stringnumber)
+{
+	int result;
+	try
+	{
+		result = stoi(stringnumber);
+	}
+	catch(const std::invalid_argument& ia)
+	{
+		cerr << "Error: Port number not valid: not convertable" << endl;
+		exit(EXIT_FAILURE);
+	}
+	catch(const std::out_of_range& outrange)
+	{
+		cerr << "Error: Port number not valid: number of of int range" << endl;
+		exit(EXIT_FAILURE);
+	}
+	if(result < 0 || result > 65535)
+	{
+		cerr << "Error: Port number not valid: shoud be between 0 - 65535" << endl;
+		exit(EXIT_FAILURE);
+	}
+	return stringnumber
+}
 
 // convert char array to int
 // e.g.: 00000010 -> 4
