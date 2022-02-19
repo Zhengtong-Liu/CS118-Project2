@@ -31,7 +31,7 @@ int getIntFromCharArr (char * arr) {
 // convert int to char array
 // e.g.: 4 -> 00000010 
 void setCharArrFromInt(int num, char * arr, int n_bytes) {
-	for (int i = 0; i < n_bytes, i++) 
+	for (int i = 0; i < n_bytes; i++) 
 		*(arr + i) = 0;
 	int magnitude = 0;
 	while (num != 0) {
