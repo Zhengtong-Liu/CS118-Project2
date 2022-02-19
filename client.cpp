@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
     
-	char* buffer[BUFFER_SIZE];
+	char buffer[BUFFER_SIZE];
 	memset(buffer, 0, sizeof(buffer));
 
 	if ( (ret = recv(sock, buffer, BUFFER_SIZE, 0)) < 0 ) {
