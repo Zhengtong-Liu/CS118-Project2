@@ -96,6 +96,7 @@ int main(int argc, char* argv[])
 		perror("send");
 		exit(EXIT_FAILURE);
 	}
+	outputMessage(curHeader, true, "SEND");
 	prevHeader = curHeader;
 
     
@@ -118,10 +119,20 @@ int main(int argc, char* argv[])
 
 		// deconstruct message header to curHeader and print to std::out
 		DeconstructMessage(curHeader, msgBuffer);
-		outputMessage(curHeader, true);
+		outputMessage(curHeader, true, "RECV");
 
+		// FIN 2 seconds expires, close connection
+		if (two_seconds_counter != -1 && time(0) - two_seconds_counter >= 2) {
+			if ( close(sock) < 0 ) {
+				perror("close");
+				exit(EXIT_FAILURE);
+			}
+			break;
+		}
+		
 		// All data sent, start FIN
-		if (cur_package_number == n_package_total) {
+		else if (cur_package_number == n_package_total) {
+			cur_package_number ++;
 			sendResponse = true;
 			curHeader.SYN = 0;
 			curHeader.ACK = 0;
@@ -148,6 +159,7 @@ int main(int argc, char* argv[])
 				perror("send");
 				exit(EXIT_FAILURE);
 			}
+			outputMessage(curHeader, true, "SEND");
 			// prepare for data transfer
 			curHeader.ACK = 0;
 			cur_package_number ++;
@@ -174,7 +186,10 @@ int main(int argc, char* argv[])
 		}
 
 		// The rest case, send subsequent package
-		else {
+		else if (cur_package_number < n_package_total){
+			curHeader.ACK = 0;
+			curHeader.SYN = 0;
+			curHeader.FIN = 0;
 			sendResponse = true;
 			cur_package_number ++;
 			payload_len = cur_package_number == n_package_total ? file_content.length() % 512 : 512;
@@ -192,6 +207,7 @@ int main(int argc, char* argv[])
 				perror("send");
 				exit(EXIT_FAILURE);
 			}
+			outputMessage(curHeader, true, "SEND");
 
 			// Assign curHeader to prevHeader
 			prevHeader = curHeader;

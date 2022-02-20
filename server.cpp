@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
 		Header fin_header {0, 0, 0, 0, 0, 0};
 
 		DeconstructMessage(header, buffer);
-		outputMessage(header, false);
+		outputMessage(header, false, "RECV");
 		int payloadLength = strlen(buffer + HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
 
 		// flag bits
@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 			// [NOT SURE] For FIN ACK, set seq # to previous seq #
 			header.sequenceNumber = client_status[connectionCount].sequenceNumber;
 			header.ACK = 1;
-
+			header.FIN = 0;
 			// in the case of FIN, needs to send additional FIN packet
 			fin_header = header;
 
@@ -146,7 +146,11 @@ int main(int argc, char* argv[])
 			fin_header.ACK = 0;
 			fin_header.FIN = 1;
 
-		} else {
+		} else if (header.ACK)
+		{
+			continue;
+		}
+		else {
 			int clientAckNumber = header.ackNumber;
 			header.ackNumber = header.sequenceNumber + payloadLength;
 			header.sequenceNumber = clientAckNumber;
@@ -176,8 +180,9 @@ int main(int argc, char* argv[])
 		  	perror("sendto");
 		  	continue;
 		}
+		outputMessage(header, false, "SEND");
 
-		if (header.FIN)
+		if (fin_header.FIN)
 		{
 			memset(out_msg, 0, sizeof(out_msg));
 			ConstructMessage(fin_header, NULL, out_msg, 0);
@@ -186,6 +191,7 @@ int main(int argc, char* argv[])
 				perror("sendto");
 				continue;
 			}
+			outputMessage(fin_header, false, "SEND");
 		}
 
 		client_status[connectionCount] = header;
