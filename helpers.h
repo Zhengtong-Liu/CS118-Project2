@@ -2,6 +2,7 @@
 #define MAX_PAYLOAD_SIZE 512
 #include <string.h>
 using namespace std;
+#include <algorithm>
 // Struct that stores header fields
 struct Header {
 	int sequenceNumber;
@@ -10,6 +11,34 @@ struct Header {
 	int ACK;
 	int SYN;
 	int FIN;
+};
+class Cwnd // cwnd class
+{
+	int cwnd_size; // current cwnd window size
+	int ssthresh; // current ssthresh size
+	int max_cwnd; //max window allowed
+	public:
+	Cwnd():cwnd_size(512),ssthresh(10000),max_cwnd(51200){}
+	int get_cwnd_size()//return current cwnd size 
+	{
+		return cwnd_size;
+	}
+	int get_ssthresh()//return current ssthresh
+	{
+		return ssthresh;
+	}
+	void recvACK()//recive the ACK
+	{
+		if(cwnd_size < ssthresh)//if it is in slow start
+			cwnd_size = std::min(cwnd_size+512, max_cwnd);
+		else // if it is in congestion avoidance
+			cwnd_size = std::min(cwnd_size+((512*512)/cwnd_size), max_cwnd);
+	}
+	void timeout()//time out, reset cwnd size
+	{
+		ssthresh = cwnd_size / 2;
+		cwnd_size = 512;
+	}
 };
 
 int safeportSTOI(string stringnumber)
@@ -82,7 +111,7 @@ void ConstructMessage(Header header, char * payload, char * buffer, int payloadS
 }
 
 // deconstruct whole message into header and payload
-void DeconstructMessage(Header header, char * buffer) {
+void DeconstructMessage(Header & header, char * buffer) {
     header.sequenceNumber = getIntFromCharArr(buffer, 4);
 	header.ackNumber = getIntFromCharArr(buffer + 4, 4);
 	header.connectionID = getIntFromCharArr(buffer + 8, 2);
