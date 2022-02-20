@@ -111,7 +111,7 @@ void ConstructMessage(Header header, char * payload, char * buffer, int payloadS
 }
 
 // deconstruct whole message into header and payload
-void DeconstructMessage(Header header, char * buffer) {
+void DeconstructMessage(Header & header, char * buffer) {
     header.sequenceNumber = getIntFromCharArr(buffer, 4);
 	header.ackNumber = getIntFromCharArr(buffer + 4, 4);
 	header.connectionID = getIntFromCharArr(buffer + 8, 2);

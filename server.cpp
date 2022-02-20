@@ -106,10 +106,11 @@ int main(int argc, char* argv[])
 
 		// Extract header and payload
 		// header
-		Header header {{0}};
-		Header fin_header {{0}};
+		Header header = {0, 0, 0, 0, 0, 0};
+		Header fin_header {0, 0, 0, 0, 0, 0};
 
 		DeconstructMessage(header, buffer);
+		outputMessage(header, false);
 		int payloadLength = strlen(buffer + HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
 
 		// flag bits
@@ -127,7 +128,6 @@ int main(int argc, char* argv[])
 			header.SYN = 1;
 		}
 		else if (header.FIN) {
-			header.connectionID = connectionCount;
 			header.ackNumber = header.sequenceNumber + 1;
 			// [NOT SURE] For FIN ACK, set seq # to previous seq #
 			header.sequenceNumber = client_status[connectionCount].sequenceNumber;
@@ -146,8 +146,6 @@ int main(int argc, char* argv[])
 			header.sequenceNumber = clientAckNumber;
 			header.ACK = 1;
 		}
-
-		outputMessage(header, false);
 
 		string file_path (dir);
 		file_path += "/" + to_string(connectionCount) + ".file";
