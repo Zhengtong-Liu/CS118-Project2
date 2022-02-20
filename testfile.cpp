@@ -12,7 +12,7 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-
+#include <algorithm>
 // #include "helpers.h"
 
 #define BUFFER_SIZE 1024
@@ -21,6 +21,41 @@ int connectionCount = 0;
 
 using namespace std;
 
+class Cwnd
+{
+	int cwnd_size;
+	int ssthresh;
+	int max_cwnd;
+	bool is_congestion_avoidance;
+	Public:
+	Cwnd():cwnd_size(512),ssthresh(10000),max_cwnd(51200),is_congestion_avoidance(false){}
+	int get_cwnd_size()
+	{
+		return cwnd_size;
+	}
+	int get_ssthresh()
+	{
+		return ssthresh;
+	}
+	void recvACK()
+	{
+		if(!is_congestion_avoidance && (cwnd_size < ssthresh))
+		{
+			cwnd_size = std::min(cwnd_size+512, max_cwnd);
+		}
+		else
+		{
+			is_congestion_avoidance = true;
+			cwnd_size = std::min(cwnd_size+((512*512)/cwnd_size), max_cwnd);
+		}
+	}
+	void timeout()
+	{
+		ssthresh = cwnd_size / 2;
+		cwnd_size = 512;
+		is_congestion_avoidance = false;
+	}
+}
 // signal handler
 void sig_handler(int sig) {
 	if (sock > 0) {
