@@ -121,8 +121,8 @@ void DeconstructMessage(Header & header, char * buffer) {
 }
 
 // output debug message to std::out
-void outputMessage(Header header, bool isClient) {
-	cout << "RECV " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
+void outputMessage(Header header, bool isClient, string action) {
+	cout << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
 	if (isClient) 
 		cout << " " << 0 << " " << 0;
 	if (header.ACK)
