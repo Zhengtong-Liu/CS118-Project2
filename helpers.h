@@ -21,17 +21,17 @@ int safeportSTOI(string stringnumber)
 	}
 	catch(const std::invalid_argument& ia)
 	{
-		cerr << "Error: Port number not valid: not convertable" << endl;
+		cerr << "ERROR: Port number not valid: not convertable" << endl;
 		exit(EXIT_FAILURE);
 	}
 	catch(const std::out_of_range& outrange)
 	{
-		cerr << "Error: Port number not valid: number of of int range" << endl;
+		cerr << "ERROR: Port number not valid: number of of int range" << endl;
 		exit(EXIT_FAILURE);
 	}
 	if(result < 0 || result > 65535)
 	{
-		cerr << "Error: Port number not valid: shoud be between 0 - 65535" << endl;
+		cerr << "ERROR: Port number not valid: shoud be between 0 - 65535" << endl;
 		exit(EXIT_FAILURE);
 	}
 	return result;
