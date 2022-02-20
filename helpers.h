@@ -12,39 +12,32 @@ struct Header {
 	int SYN;
 	int FIN;
 };
-class Cwnd
+class Cwnd // cwnd class
 {
-	int cwnd_size;
-	int ssthresh;
-	int max_cwnd;
-	bool is_congestion_avoidance;
+	int cwnd_size; // current cwnd window size
+	int ssthresh; // current ssthresh size
+	int max_cwnd; //max window allowed
 	public:
-	Cwnd():cwnd_size(512),ssthresh(10000),max_cwnd(51200),is_congestion_avoidance(false){}
-	int get_cwnd_size()
+	Cwnd():cwnd_size(512),ssthresh(10000),max_cwnd(51200){}
+	int get_cwnd_size()//return current cwnd size 
 	{
 		return cwnd_size;
 	}
-	int get_ssthresh()
+	int get_ssthresh()//return current ssthresh
 	{
 		return ssthresh;
 	}
-	void recvACK()
+	void recvACK()//recive the ACK
 	{
-		if(!is_congestion_avoidance && (cwnd_size < ssthresh))
-		{
+		if(cwnd_size < ssthresh)//if it is in slow start
 			cwnd_size = std::min(cwnd_size+512, max_cwnd);
-		}
-		else
-		{
-			is_congestion_avoidance = true;
+		else // if it is in congestion avoidance
 			cwnd_size = std::min(cwnd_size+((512*512)/cwnd_size), max_cwnd);
-		}
 	}
-	void timeout()
+	void timeout()//time out, reset cwnd size
 	{
 		ssthresh = cwnd_size / 2;
 		cwnd_size = 512;
-		is_congestion_avoidance = false;
 	}
 };
 
