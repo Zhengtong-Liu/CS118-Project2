@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 	char payload [MAX_PAYLOAD_SIZE];
 	char msgBuffer[BUFFER_SIZE];
 	int payload_len = 0;
-	int n_package_total = file_content.length() / 512 + ceil(file_content.length() % 512);
+	int n_package_total = ceil(double(file_content.length()) / 512.0);
 	int cur_package_number = 0;
 	time_t two_seconds_counter = (time_t)(-1);
 	bool sendResponse = true;
@@ -120,18 +120,8 @@ int main(int argc, char* argv[])
 		DeconstructMessage(curHeader, msgBuffer);
 		outputMessage(curHeader, true);
 
-		// SYN ACK case, responde with ACK message and first data message
-		if (prevHeader.SYN && curHeader.SYN && curHeader.ACK) {
-			sendResponse = true;
-			curHeader.SYN = 0;
-			curHeader.ACK = 1;
-			curHeader.FIN = 0;
-			curHeader.ackNumber = curHeader.sequenceNumber;
-			curHeader.sequenceNumber = 12346;
-		}
-
 		// All data sent, start FIN
-		else if (cur_package_number == n_package_total) {
+		if (cur_package_number == n_package_total) {
 			sendResponse = true;
 			curHeader.SYN = 0;
 			curHeader.ACK = 0;
@@ -141,16 +131,41 @@ int main(int argc, char* argv[])
 			payload_len = 0;
 		}
 
+		// SYN ACK case, responde with ACK message and first data message
+		else if (prevHeader.SYN && curHeader.SYN && curHeader.ACK) {
+			sendResponse = true;
+			payload_len = 0;
+			curHeader.SYN = 0;
+			curHeader.ACK = 1;
+			curHeader.FIN = 0;
+			curHeader.ackNumber = curHeader.sequenceNumber;
+			curHeader.sequenceNumber = 12346;
+
+			// responde with ack message
+			memset(msgBuffer, 0, BUFFER_SIZE);
+			ConstructMessage(curHeader, payload, msgBuffer, payload_len);
+			if ( (ret = send(sock, msgBuffer, sizeof(out_msg), 0)) < 0 ) {
+				perror("send");
+				exit(EXIT_FAILURE);
+			}
+			// prepare for data transfer
+			curHeader.ACK = 0;
+			cur_package_number ++;
+			payload_len = cur_package_number == n_package_total ? file_content.length() % 512 : 512;
+		}
+
 		// FIN ACK case, start waiting 2 seconds
 		else if (prevHeader.FIN && curHeader.ACK) {
 			sendResponse = false;
+			payload_len = 0;
 			if (two_seconds_counter == -1)
 				two_seconds_counter = time(0);
 		}
-	
+
 		// in 2 seconds waiting phase and receives FIN, responds with ACK
 		else if (prevHeader.FIN && curHeader.FIN) {
 			sendResponse = true;
+			payload_len = 0;
 			curHeader.ACK = 1;
 			curHeader.SYN = 0;
 			curHeader.FIN = 0;
@@ -158,33 +173,22 @@ int main(int argc, char* argv[])
 			curHeader.sequenceNumber = prevHeader.sequenceNumber + 1;
 		}
 
-		// FIN 2 seconds expires, close connection
-		else if (two_seconds_counter != -1 && time(0) - two_seconds_counter >= 2) {
-			if ( close(sock) < 0 ) {
-				perror("close");
-				exit(EXIT_FAILURE);
-			}
-			break;
-		}
-
 		// The rest case, send subsequent package
 		else {
 			sendResponse = true;
 			cur_package_number ++;
+			payload_len = cur_package_number == n_package_total ? file_content.length() % 512 : 512;
 		}
-
 
 		if (sendResponse) {
 			// construct the payload size of the current package
 			memset(payload, 0, sizeof(payload));
-			payload_len = cur_package_number == n_package_total ? file_content.length() % 512 : 512;
 			strncpy(payload, file_content.c_str() + 512 * (cur_package_number - 1), payload_len);
 			payload[payload_len] = 0;
-
 			// construct and send message to server
 			memset(msgBuffer, 0, BUFFER_SIZE);
 			ConstructMessage(curHeader, payload, msgBuffer, payload_len);
-			if ( (ret = send(sock, out_msg, sizeof(out_msg), 0)) < 0 ) {
+			if ( (ret = send(sock, msgBuffer, HEADER_SIZE + payload_len, 0)) < 0 ) {
 				perror("send");
 				exit(EXIT_FAILURE);
 			}

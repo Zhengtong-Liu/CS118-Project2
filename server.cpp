@@ -128,6 +128,11 @@ int main(int argc, char* argv[])
 			header.ACK = 1;
 			header.SYN = 1;
 		}
+		else if (client_status[header.connectionID].SYN) {
+			client_status[header.connectionID].SYN = 0;
+			client_status[header.connectionID].ACK = 0;
+			continue;
+		}
 		else if (header.FIN) {
 			header.ackNumber = header.sequenceNumber + 1;
 			// [NOT SURE] For FIN ACK, set seq # to previous seq #
