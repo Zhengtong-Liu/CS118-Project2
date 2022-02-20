@@ -10,9 +10,11 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <time.h>
+
 
 #include "helpers.h"
 
@@ -109,10 +111,27 @@ int main(int argc, char* argv[])
 	time_t two_seconds_counter = (time_t)(-1);
 	bool sendResponse = true;
 
+	// non-blocking
+	int yes = 1;
+	ioctl(sock, FIONBIO, (char*)&yes);
+
+
 	while (1) {
 		// receive messag and store in msgBuffer
 		memset(msgBuffer, 0, BUFFER_SIZE);
-		if ( (ret = recv(sock, msgBuffer, BUFFER_SIZE, 0)) < 0 ) {
+
+		// non-blocking
+		long ret = ret = recv(sock, msgBuffer, BUFFER_SIZE, 0);
+		if (ret == -1 && errno == EWOULDBLOCK) {
+			if (two_seconds_counter != -1 && time(0) - two_seconds_counter >= 2) {
+				if ( close(sock) < 0 ) {
+					perror("close");
+					exit(EXIT_FAILURE);
+				}
+				break;
+			}
+			continue;
+		} else if (ret < 0 ) {
 			perror("recv");
 			exit(EXIT_FAILURE);
 		}

@@ -1,8 +1,13 @@
+#include <string.h>
+#include <algorithm>
+#include <unordered_map>
+#include <time.h>
+
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
-#include <string.h>
+
 using namespace std;
-#include <algorithm>
+
 // Struct that stores header fields
 struct Header {
 	int sequenceNumber;
@@ -39,6 +44,23 @@ class Cwnd // cwnd class
 		ssthresh = cwnd_size / 2;
 		cwnd_size = 512;
 	}
+};
+
+
+// manage connection with each client, identified by its connection ID
+class ClientController
+{
+public:
+	int ConnectionID;
+	unordered_map <int, char*> payload_map;
+	time_t timer;
+	int expectedSeqNum;
+	int lastSentSeqNum;
+
+	ClientController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
+		timer = time(0);
+	}
+
 };
 
 int safeportSTOI(string stringnumber)

@@ -10,9 +10,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <unordered_map>
+#include <time.h>
 
 #include "helpers.h"
 
@@ -89,26 +91,48 @@ int main(int argc, char* argv[])
 
 	socklen_t sock_len;
 	int n;
+	bool out_of_order = false;
 	char buffer[BUFFER_SIZE];
-	memset(&buffer, 0, sizeof(buffer));
+	memset(buffer, 0, sizeof(buffer));
 	// Header previous_header {{0}};
 
-	unordered_map<int, Header> client_status;
+	unordered_map<int, Header> previous_header_map;
+	unordered_map<int, ClientController*> client_controller_map;
+
+	// non-blocking
+	int yes = 1;
+	ioctl(sock, FIONBIO, (char*)&yes);
 
 	while (1) {
-		sock_len = sizeof(client_addr);
-		
-		if ( (n = recvfrom(sock, (char *) buffer, BUFFER_SIZE, 0, (sockaddr *)&client_addr, &sock_len)) < 0 )
+
+		// check whether any one of connections is expired
+		for (auto it : client_controller_map) 
 		{
+			time_t prev_t = it.second -> timer;
+			if ((time(0) - prev_t) >= 10) {
+				delete it.second;
+				client_controller_map.erase(it.first);
+				cout << "LOG: connection ID " << it.first << " expires" << endl;
+			}	
+		}
+
+		sock_len = sizeof(client_addr);
+		n = recvfrom(sock, (char *) buffer, BUFFER_SIZE, 0, (sockaddr *)&client_addr, &sock_len);
+		// non-blocking
+		if(n == -1 && errno == EWOULDBLOCK)
+		{
+			memset(buffer, 0, sizeof(buffer));
+			continue;
+		} else if (n < 0) {
 			perror("recvfrom");
-			memset(&buffer, 0, sizeof(buffer));
+			memset(buffer, 0, sizeof(buffer));
 			continue;
 		}
 
 		// Extract header and payload
 		// header
 		Header header = {0, 0, 0, 0, 0, 0};
-		Header fin_header {0, 0, 0, 0, 0, 0};
+		Header fin_header = {0, 0, 0, 0, 0, 0};
 
 		DeconstructMessage(header, buffer);
 		outputMessage(header, false, "RECV");
@@ -119,6 +143,32 @@ int main(int argc, char* argv[])
 		header.SYN = (buffer[10] & 2) != 0;
 		header.FIN = (buffer[10] & 1) != 0;
 
+		// construct and modify client controller of each connection
+		if (header.SYN) {
+			client_controller_map[connectionCount + 1] = new ClientController(connectionCount+1, header.sequenceNumber+1, INITIAL_SEQ+1);
+		} else {
+			// if this is not a SYN packet but cannot find connection ID of this packet in the map, report error
+			if (client_controller_map.find(header.connectionID) == client_controller_map.end())
+			{
+				cerr << "ERROR: either invalid connection ID or connection expired" << endl;
+				continue;
+			} else // update this client controller's information
+			{
+				client_controller_map[header.connectionID] -> lastSentSeqNum = header.ackNumber;
+				client_controller_map[header.connectionID] -> timer = time(0);
+				if (!(header.ACK || header.FIN))
+				{
+					if (client_controller_map[header.connectionID] -> expectedSeqNum != header.sequenceNumber)
+					{
+						out_of_order = true;
+						cout << "LOG: out of order packet" << endl;
+					} else {
+						client_controller_map[header.connectionID] -> expectedSeqNum = header.sequenceNumber + payloadLength;
+					}
+				}
+			}
+		}
+
 		// Receive SYN, establish connection
 		if (header.SYN) {
 			connectionCount ++;
@@ -128,15 +178,17 @@ int main(int argc, char* argv[])
 			header.ACK = 1;
 			header.SYN = 1;
 		}
-		else if (client_status[header.connectionID].SYN) {
-			client_status[header.connectionID].SYN = 0;
-			client_status[header.connectionID].ACK = 0;
+		else if (previous_header_map[header.connectionID].SYN && header.ACK) {
+
+			previous_header_map[header.connectionID].SYN = 0;
+			previous_header_map[header.connectionID].ACK = 0;
 			continue;
 		}
 		else if (header.FIN) {
+
 			header.ackNumber = header.sequenceNumber + 1;
 			// [NOT SURE] For FIN ACK, set seq # to previous seq #
-			header.sequenceNumber = client_status[connectionCount].sequenceNumber;
+			header.sequenceNumber = previous_header_map[connectionCount].sequenceNumber;
 			header.ACK = 1;
 			header.FIN = 0;
 			// in the case of FIN, needs to send additional FIN packet
@@ -151,10 +203,17 @@ int main(int argc, char* argv[])
 			continue;
 		}
 		else {
+			char payload[payloadLength+1];
+			memset(payload, 0, sizeof(payload));
+			strcpy(payload, buffer + HEADER_SIZE);
+
+			client_controller_map[header.connectionID] -> payload_map[header.sequenceNumber] = payload;
+
 			int clientAckNumber = header.ackNumber;
 			header.ackNumber = header.sequenceNumber + payloadLength;
 			header.sequenceNumber = clientAckNumber;
 			header.ACK = 1;
+
 		}
 
 		string file_path (dir);
@@ -163,8 +222,10 @@ int main(int argc, char* argv[])
 		ofstream f;
 		f.open(file_path, ios_base::app); // append to file if exist
 		if (f.is_open()) {
-			// cout << file_path << endl;
-			f << buffer + HEADER_SIZE;
+			if ( !out_of_order ) {
+				f << buffer + HEADER_SIZE;
+			}
+
 			f.close();
 		} else {
 			cerr << "Unable to open the file: " << file_path << endl;
@@ -194,7 +255,7 @@ int main(int argc, char* argv[])
 			outputMessage(fin_header, false, "SEND");
 		}
 
-		client_status[connectionCount] = header;
+		previous_header_map[header.connectionID] = header;
 	}
 
 	return 0;
