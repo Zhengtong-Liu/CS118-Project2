@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
 		Header fin_header = {0, 0, 0, 0, 0, 0};
 
 		DeconstructMessage(header, buffer);
-		outputMessage(header, false, "RECV");
+		outputMessage(header, "RECV");
 		int payloadLength = strlen(buffer + HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
 
 		// flag bits
@@ -146,23 +146,22 @@ int main(int argc, char* argv[])
 		// construct and modify client controller of each connection
 		if (header.SYN) {
 			client_controller_map[connectionCount + 1] = new ClientController(connectionCount+1, header.sequenceNumber+1, INITIAL_SEQ+1);
-		} else {
-			// if this is not a SYN packet but cannot find connection ID of this packet in the map, report error
-			if (client_controller_map.find(header.connectionID) == client_controller_map.end())
-			{
-				cerr << "ERROR: either invalid connection ID or connection expired" << endl;
+		} 
+		else {
+			// if this is not a SYN packet but cannot find connection ID of this packet in the map, drop packet
+			if (client_controller_map.find(header.connectionID) == client_controller_map.end()) {
+				outputMessage(header, "DROP");
 				continue;
-			} else // update this client controller's information
-			{
+			} 
+			else { // update this client controller's information
 				client_controller_map[header.connectionID] -> lastSentSeqNum = header.ackNumber;
 				client_controller_map[header.connectionID] -> timer = time(0);
-				if (!(header.ACK || header.FIN))
-				{
-					if (client_controller_map[header.connectionID] -> expectedSeqNum != header.sequenceNumber)
-					{
+				if (!(header.ACK || header.FIN)) {
+					if (client_controller_map[header.connectionID] -> expectedSeqNum != header.sequenceNumber) {
 						out_of_order = true;
 						cout << "LOG: out of order packet" << endl;
-					} else {
+					} 
+					else {
 						client_controller_map[header.connectionID] -> expectedSeqNum = header.sequenceNumber + payloadLength;
 					}
 				}
@@ -178,14 +177,14 @@ int main(int argc, char* argv[])
 			header.ACK = 1;
 			header.SYN = 1;
 		}
+		// SYN ACK
 		else if (previous_header_map[header.connectionID].SYN && header.ACK) {
-
 			previous_header_map[header.connectionID].SYN = 0;
 			previous_header_map[header.connectionID].ACK = 0;
 			continue;
 		}
+		// FIN
 		else if (header.FIN) {
-
 			header.ackNumber = header.sequenceNumber + 1;
 			// [NOT SURE] For FIN ACK, set seq # to previous seq #
 			header.sequenceNumber = previous_header_map[connectionCount].sequenceNumber;
@@ -198,10 +197,10 @@ int main(int argc, char* argv[])
 			fin_header.ACK = 0;
 			fin_header.FIN = 1;
 
-		} else if (header.ACK)
-		{
-			continue;
-		}
+		} 
+		// receives ACK, do nothing
+		else if (header.ACK) continue;
+		// Normal case, receives packet with payload
 		else {
 			char payload[payloadLength+1];
 			memset(payload, 0, sizeof(payload));
@@ -216,33 +215,33 @@ int main(int argc, char* argv[])
 
 		}
 
+		// append payload to specified file
 		string file_path (dir);
 		file_path += "/" + to_string(connectionCount) + ".file";
 
 		ofstream f;
 		f.open(file_path, ios_base::app); // append to file if exist
 		if (f.is_open()) {
-			if ( !out_of_order ) {
+			if ( !out_of_order ) 
 				f << buffer + HEADER_SIZE;
-			}
-
 			f.close();
-		} else {
+		} 
+		else {
 			cerr << "Unable to open the file: " << file_path << endl;
 		}
 
-		// construct return message
+		// construct and send return message
 		char out_msg [HEADER_SIZE];
 		memset(out_msg, 0, sizeof(out_msg));
-
 		ConstructMessage(header, NULL, out_msg, 0);
 		if ( (sendto(sock, out_msg, sizeof(out_msg), 0, (sockaddr *)&client_addr, sock_len)) < 0)
 		{
 		  	perror("sendto");
 		  	continue;
 		}
-		outputMessage(header, false, "SEND");
+		outputMessage(header, "SEND");
 
+		// FIN case, send additional FIN message
 		if (fin_header.FIN)
 		{
 			memset(out_msg, 0, sizeof(out_msg));
@@ -252,9 +251,10 @@ int main(int argc, char* argv[])
 				perror("sendto");
 				continue;
 			}
-			outputMessage(fin_header, false, "SEND");
+			outputMessage(fin_header, "SEND");
 		}
-
+		
+		// assign current header to previous header
 		previous_header_map[header.connectionID] = header;
 	}
 

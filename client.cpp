@@ -81,6 +81,17 @@ int main(int argc, char* argv[])
 	Header prevHeader = {0, 0, 0, 0, 0, 0};
 	Header curHeader = {0, 0, 0, 0, 0, 0};
 
+	// declare variables
+	char payload [MAX_PAYLOAD_SIZE]; // buffer to store payload
+	char msgBuffer[BUFFER_SIZE]; // buffer to store received/sent message
+	int payload_len = 0; // payload length to be sent
+	int expectedAckNumber = 0; // expected ack number from server
+	int n_fragments_total = ceil(double(file_content.length()) / 512.0); // total # of fragments
+	int cur_fragment_number = 0; // the # of frament to be sent
+	time_t two_seconds_counter = (time_t)(-1); // FIN 2 second timer
+	bool sendMessage = true; // whether a message should be sent in this round
+	Cwnd * cwnd = new Cwnd(); // cwnd controller
+
 	// =========================== SYN =====================================
 	curHeader.sequenceNumber = 12345;
 	curHeader.ackNumber = 0;
@@ -98,18 +109,9 @@ int main(int argc, char* argv[])
 		perror("send");
 		exit(EXIT_FAILURE);
 	}
-	outputMessage(curHeader, true, "SEND");
+	outputMessage(curHeader, "SEND", cwnd);
 	prevHeader = curHeader;
-
-    
-	// declare variables
-	char payload [MAX_PAYLOAD_SIZE];
-	char msgBuffer[BUFFER_SIZE];
-	int payload_len = 0;
-	int n_package_total = ceil(double(file_content.length()) / 512.0);
-	int cur_package_number = 0;
-	time_t two_seconds_counter = (time_t)(-1);
-	bool sendResponse = true;
+	expectedAckNumber = 12346;
 
 	// non-blocking
 	int yes = 1;
@@ -120,8 +122,8 @@ int main(int argc, char* argv[])
 		// receive messag and store in msgBuffer
 		memset(msgBuffer, 0, BUFFER_SIZE);
 
-		// non-blocking
-		long ret = ret = recv(sock, msgBuffer, BUFFER_SIZE, 0);
+		// non-blocking receive
+		long ret = recv(sock, msgBuffer, BUFFER_SIZE, 0);
 		if (ret == -1 && errno == EWOULDBLOCK) {
 			if (two_seconds_counter != -1 && time(0) - two_seconds_counter >= 2) {
 				if ( close(sock) < 0 ) {
@@ -138,98 +140,101 @@ int main(int argc, char* argv[])
 
 		// deconstruct message header to curHeader and print to std::out
 		DeconstructMessage(curHeader, msgBuffer);
-		outputMessage(curHeader, true, "RECV");
-
-		// FIN 2 seconds expires, close connection
-		if (two_seconds_counter != -1 && time(0) - two_seconds_counter >= 2) {
-			if ( close(sock) < 0 ) {
-				perror("close");
-				exit(EXIT_FAILURE);
-			}
-			break;
-		}
+		outputMessage(curHeader, "RECV", cwnd);
 		
-		// All data sent, start FIN
-		else if (cur_package_number == n_package_total) {
-			cur_package_number ++;
-			sendResponse = true;
-			curHeader.SYN = 0;
-			curHeader.ACK = 0;
-			curHeader.FIN = 1;
-			curHeader.sequenceNumber = curHeader.ackNumber;
-			curHeader.ackNumber = 0;
-			payload_len = 0;
+		// Check whether server ack with correct ack number
+		if (curHeader.ackNumber != expectedAckNumber && !curHeader.FIN) { // wrong ack number without FIN flag
+			perror("Wrong ack Number from client!");
+			continue; // TODO
 		}
+		else { // correct ack numbver
+			cwnd -> recvACK();
 
-		// SYN ACK case, responde with ACK message and first data message
-		else if (prevHeader.SYN && curHeader.SYN && curHeader.ACK) {
-			sendResponse = true;
-			payload_len = 0;
-			curHeader.SYN = 0;
-			curHeader.ACK = 1;
-			curHeader.FIN = 0;
-			curHeader.ackNumber = curHeader.sequenceNumber;
-			curHeader.sequenceNumber = 12346;
-
-			// responde with ack message
-			memset(msgBuffer, 0, BUFFER_SIZE);
-			ConstructMessage(curHeader, payload, msgBuffer, payload_len);
-			if ( (ret = send(sock, msgBuffer, sizeof(out_msg), 0)) < 0 ) {
-				perror("send");
-				exit(EXIT_FAILURE);
+			// All data sent, start FIN
+			if (cur_fragment_number == n_fragments_total) {
+				cur_fragment_number ++;
+				sendMessage = true;
+				payload_len = 0;
+				expectedAckNumber ++;
+				// construct header
+				curHeader.SYN = 0;
+				curHeader.ACK = 0;
+				curHeader.FIN = 1;
+				curHeader.sequenceNumber = curHeader.ackNumber;
+				curHeader.ackNumber = 0;
 			}
-			outputMessage(curHeader, true, "SEND");
-			// prepare for data transfer
-			curHeader.ACK = 0;
-			cur_package_number ++;
-			payload_len = cur_package_number == n_package_total ? file_content.length() % 512 : 512;
-		}
 
-		// FIN ACK case, start waiting 2 seconds
-		else if (prevHeader.FIN && curHeader.ACK) {
-			sendResponse = false;
-			payload_len = 0;
-			if (two_seconds_counter == -1)
-				two_seconds_counter = time(0);
-		}
+			// SYN ACK case, responde with ACK message and first data message
+			else if (prevHeader.SYN && curHeader.SYN && curHeader.ACK) {
+				sendMessage = true;
+				payload_len = 0;
+				curHeader.SYN = 0;
+				curHeader.ACK = 1;
+				curHeader.FIN = 0;
+				curHeader.ackNumber = curHeader.sequenceNumber;
+				curHeader.sequenceNumber = 12346;
 
-		// in 2 seconds waiting phase and receives FIN, responds with ACK
-		else if (prevHeader.FIN && curHeader.FIN) {
-			sendResponse = true;
-			payload_len = 0;
-			curHeader.ACK = 1;
-			curHeader.SYN = 0;
-			curHeader.FIN = 0;
-			curHeader.ackNumber = curHeader.sequenceNumber + 1;
-			curHeader.sequenceNumber = prevHeader.sequenceNumber + 1;
-		}
-
-		// The rest case, send subsequent package
-		else if (cur_package_number < n_package_total){
-			curHeader.ACK = 0;
-			curHeader.SYN = 0;
-			curHeader.FIN = 0;
-			sendResponse = true;
-			cur_package_number ++;
-			payload_len = cur_package_number == n_package_total ? file_content.length() % 512 : 512;
-		}
-
-		if (sendResponse) {
-			// construct the payload size of the current package
-			memset(payload, 0, sizeof(payload));
-			strncpy(payload, file_content.c_str() + 512 * (cur_package_number - 1), payload_len);
-			payload[payload_len] = 0;
-			// construct and send message to server
-			memset(msgBuffer, 0, BUFFER_SIZE);
-			ConstructMessage(curHeader, payload, msgBuffer, payload_len);
-			if ( (ret = send(sock, msgBuffer, HEADER_SIZE + payload_len, 0)) < 0 ) {
-				perror("send");
-				exit(EXIT_FAILURE);
+				// responde with ack message
+				memset(msgBuffer, 0, BUFFER_SIZE);
+				ConstructMessage(curHeader, payload, msgBuffer, payload_len);
+				if ( (ret = send(sock, msgBuffer, sizeof(out_msg), 0)) < 0 ) {
+					perror("send");
+					exit(EXIT_FAILURE);
+				}
+				outputMessage(curHeader, "SEND", cwnd);
+				// prepare for data transfer
+				curHeader.ACK = 0;
+				cur_fragment_number ++;
+				payload_len = cur_fragment_number == n_fragments_total ? file_content.length() % 512 : 512;
 			}
-			outputMessage(curHeader, true, "SEND");
 
-			// Assign curHeader to prevHeader
-			prevHeader = curHeader;
+			// FIN ACK case, start waiting 2 seconds
+			else if (prevHeader.FIN && curHeader.ACK) {
+				sendMessage = false;
+				payload_len = 0;
+				if (two_seconds_counter == -1)
+					two_seconds_counter = time(0);
+			}
+
+			// in 2 seconds waiting phase and receives FIN, responds with ACK
+			else if (prevHeader.FIN && curHeader.FIN) {
+				sendMessage = true;
+				payload_len = 0;
+				curHeader.ACK = 1;
+				curHeader.SYN = 0;
+				curHeader.FIN = 0;
+				curHeader.ackNumber = curHeader.sequenceNumber + 1;
+				curHeader.sequenceNumber = prevHeader.sequenceNumber + 1;
+			}
+
+			// The rest case, send subsequent packet
+			else if (cur_fragment_number < n_fragments_total){
+				curHeader.ACK = 0;
+				curHeader.SYN = 0;
+				curHeader.FIN = 0;
+				sendMessage = true;
+				cur_fragment_number ++;
+				payload_len = cur_fragment_number == n_fragments_total ? file_content.length() % 512 : 512;
+			}
+
+			if (sendMessage) {
+				// construct the payload size of the current packet
+				memset(payload, 0, sizeof(payload));
+				strncpy(payload, file_content.c_str() + 512 * (cur_fragment_number - 1), payload_len);
+				payload[payload_len] = 0;
+				// construct and send message to server
+				memset(msgBuffer, 0, BUFFER_SIZE);
+				ConstructMessage(curHeader, payload, msgBuffer, payload_len);
+				if ( (ret = send(sock, msgBuffer, HEADER_SIZE + payload_len, 0)) < 0 ) {
+					perror("send");
+					exit(EXIT_FAILURE);
+				}
+				outputMessage(curHeader, "SEND", cwnd);
+				// increase expected ack number by payload size
+				expectedAckNumber += payload_len;
+				// Assign curHeader to prevHeader
+				prevHeader = curHeader;
+			}
 		}
 	}
 

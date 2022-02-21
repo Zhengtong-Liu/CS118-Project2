@@ -17,65 +17,63 @@ struct Header {
 	int SYN;
 	int FIN;
 };
-class Cwnd // cwnd class
-{
+
+// cwnd class
+class Cwnd {
 	int cwnd_size; // current cwnd window size
 	int ssthresh; // current ssthresh size
 	int max_cwnd; //max window allowed
+	
 	public:
-	Cwnd():cwnd_size(512),ssthresh(10000),max_cwnd(51200){}
-	int get_cwnd_size()//return current cwnd size 
-	{
-		return cwnd_size;
-	}
-	int get_ssthresh()//return current ssthresh
-	{
-		return ssthresh;
-	}
-	void recvACK()//recive the ACK
-	{
-		if(cwnd_size < ssthresh)//if it is in slow start
-			cwnd_size = std::min(cwnd_size+512, max_cwnd);
-		else // if it is in congestion avoidance
-			cwnd_size = std::min(cwnd_size+((512*512)/cwnd_size), max_cwnd);
-	}
-	void timeout()//time out, reset cwnd size
-	{
-		ssthresh = cwnd_size / 2;
-		cwnd_size = 512;
-	}
+		Cwnd():cwnd_size(512),ssthresh(10000),max_cwnd(51200){}
+		int get_cwnd_size() //return current cwnd size 
+		{
+			return cwnd_size;
+		}
+		int get_ssthresh() //return current ssthresh
+		{
+			return ssthresh;
+		}
+		void recvACK() //recive the ACK
+		{
+			// slow start vs. congestion avoidance
+			cwnd_size = cwnd_size < ssthresh ? min(cwnd_size+512, max_cwnd) : min(cwnd_size+((512*512)/cwnd_size), max_cwnd);
+		}
+		void timeout() //time out, reset cwnd size
+		{
+			ssthresh = cwnd_size / 2;
+			cwnd_size = 512;
+		}
 };
 
 
 // manage connection with each client, identified by its connection ID
-class ClientController
-{
-public:
-	int ConnectionID;
-	unordered_map <int, char*> payload_map;
-	time_t timer;
-	int expectedSeqNum;
-	int lastSentSeqNum;
+class ClientController {
+	public:
+		int ConnectionID;
+		unordered_map <int, char*> payload_map;
+		time_t timer;
+		int expectedSeqNum;
+		int lastSentSeqNum;
 
-	ClientController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
-		timer = time(0);
-	}
+		ClientController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
+			timer = time(0);
+		}
 
 };
 
-int safeportSTOI(string stringnumber)
-{
+int safeportSTOI(string stringnumber) {
 	int result;
 	try
 	{
 		result = stoi(stringnumber);
 	}
-	catch(const std::invalid_argument& ia)
+	catch(const invalid_argument& ia)
 	{
 		cerr << "ERROR: Port number not valid: not convertable" << endl;
 		exit(EXIT_FAILURE);
 	}
-	catch(const std::out_of_range& outrange)
+	catch(const out_of_range& outrange)
 	{
 		cerr << "ERROR: Port number not valid: number of of int range" << endl;
 		exit(EXIT_FAILURE);
@@ -143,15 +141,17 @@ void DeconstructMessage(Header & header, char * buffer) {
 }
 
 // output debug message to std::out
-void outputMessage(Header header, bool isClient, string action) {
+void outputMessage(Header header, string action, Cwnd * cwnd=NULL, bool isDuplicate=false) {
 	cout << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
-	if (isClient) 
-		cout << " " << 0 << " " << 0;
+	if (cwnd)  // client, needs to output cwnd and ssthresh
+		cout << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
 	if (header.ACK)
 		cout << " ACK";
 	if (header.SYN)
 		cout << " SYN";
 	if (header.FIN)
 		cout << " FIN";
+	if (isDuplicate)
+		cout << " DUP";
 	cout << endl;
 }
