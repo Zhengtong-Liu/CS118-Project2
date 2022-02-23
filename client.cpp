@@ -171,7 +171,7 @@ int main(int argc, char* argv[])
 				curHeader.SYN = 0;
 				curHeader.ACK = 1;
 				curHeader.FIN = 0;
-				curHeader.ackNumber = curHeader.sequenceNumber + 1;
+				curHeader.ackNumber = curHeader.sequenceNumber;
 				curHeader.sequenceNumber = 12346;
 
 				// responde with ack message
