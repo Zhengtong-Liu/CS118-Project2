@@ -2,12 +2,13 @@
 #include <algorithm>
 #include <unordered_map>
 #include <time.h>
-
+#include <set>
+#include <unordered_set>
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
 
 using namespace std;
-bool debug = true;
+bool debug = false;
 // Struct that stores header fields
 struct Header {
 	int sequenceNumber;
@@ -17,15 +18,39 @@ struct Header {
 	int SYN;
 	int FIN;
 };
-
+// class client_bufferSeq//store in / out of order Seq Number send from server to client
+// {
+// 	unordered_set<int> buffered_server_seq;
+// 	int cum_seq = 0;
+// 	public:
+// 		client_bufferSeq(int initial_cum_seq):cum_seq(initial_cum_seq){};
+// 		void inSertNewSeq(int newSeq)
+// 		{
+// 			if(newSeq == cum_seq+1)//if it is just increase by 1, simply add 1
+// 				cum_seq += 1;
+// 			else//else store it, and try to see if continuous cum_seq formed
+// 			{
+// 				buffered_server_seq.insert(newSeq);
+// 				while(buffered_server_seq.find(cum_seq+1) != buffered_server_seq.end())
+// 				{
+// 					buffered_server_seq.erase(cum_seq+1);
+// 					cum_seq++;
+// 				}
+// 			}
+// 		}
+// 		int getCumSeq()
+// 		{
+// 			return cum_seq;
+// 		}
+// };
 // cwnd class
 class Cwnd {
 	int cwnd_size; // current cwnd window size
 	int ssthresh; // current ssthresh size
 	int max_cwnd; //max window allowed
-	
+	int cum_ack; //newest cum ack received from server
 	public:
-		Cwnd():cwnd_size(512),ssthresh(10000),max_cwnd(51200){}
+		Cwnd(int initial_ack):cwnd_size(512),ssthresh(10000),max_cwnd(51200),cum_ack(initial_ack){}
 		int get_cwnd_size() //return current cwnd size 
 		{
 			return cwnd_size;
@@ -43,6 +68,21 @@ class Cwnd {
 		{
 			ssthresh = cwnd_size / 2;
 			cwnd_size = 512;
+		}
+		void update_cumack(int new_cumack)
+		{
+			cum_ack = new_cumack % 102401;
+		}
+		bool checkWithinCWND(int wantToSent)
+		{
+			if(wantToSent < 102401)
+			{
+				return (wantToSent > cum_ack) && (wantToSent < (cum_ack + cwnd_size));
+			}
+			else
+			{
+				return (wantToSent > cum_ack) &&  ((wantToSent % 102401) < ((cum_ack + cwnd_size)%102401));
+			}
 		}
 };
 
