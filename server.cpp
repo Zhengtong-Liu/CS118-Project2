@@ -137,6 +137,7 @@ int main(int argc, char* argv[])
 		DeconstructMessage(header, buffer);
 		outputMessage(header, "RECV");
 		int payloadLength = strlen(buffer + HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
+		cout << "Payloadlength: " << to_string(payloadLength)<<endl;
 
 		// flag bits
 		header.ACK = (buffer[10] & 4) != 0;
@@ -160,8 +161,12 @@ int main(int argc, char* argv[])
 					if (client_controller_map[header.connectionID] -> expectedSeqNum != header.sequenceNumber) {
 						out_of_order = true;
 						cout << "LOG: out of order packet" << endl;
+						if(debug)
+							cout<<"Expecting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " get: " << to_string(header.sequenceNumber);
 					} 
 					else {
+						if(debug)
+							cout<<"Setting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " to: " <<to_string(header.sequenceNumber) << " + " << to_string(payloadLength)<<endl;
 						client_controller_map[header.connectionID] -> expectedSeqNum = header.sequenceNumber + payloadLength;
 					}
 				}

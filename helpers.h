@@ -7,7 +7,7 @@
 #define MAX_PAYLOAD_SIZE 512
 
 using namespace std;
-
+bool debug = true;
 // Struct that stores header fields
 struct Header {
 	int sequenceNumber;

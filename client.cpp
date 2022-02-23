@@ -214,6 +214,8 @@ int main(int argc, char* argv[])
 				curHeader.FIN = 0;
 				sendMessage = true;
 				cur_fragment_number ++;
+				curHeader.ackNumber = curHeader.sequenceNumber + 1;
+				curHeader.sequenceNumber = prevHeader.sequenceNumber + payload_len;	
 				payload_len = cur_fragment_number == n_fragments_total ? file_content.length() % 512 : 512;
 			}
 
