@@ -23,6 +23,7 @@
 int sock = -1;
 int connectionCount = 0;
 
+
 using namespace std;
 
 // signal handler
@@ -110,13 +111,23 @@ int main(int argc, char* argv[])
 		{
 			time_t prev_t = it.second -> timer;
 			if ((time(0) - prev_t) >= 10) {
+				for (auto it_temp: it.second -> payload_map)
+				{
+					if (it_temp.second)
+					{
+						delete it_temp.second;
+						it_temp.second = NULL;
+					}
+				}
 				delete it.second;
+				it.second = NULL;
 				client_controller_map.erase(it.first);
 				cout << "LOG: connection ID " << it.first << " expires" << endl;
 			}	
 		}
 
 		sock_len = sizeof(client_addr);
+		memset(buffer, 0, sizeof(buffer));
 		n = recvfrom(sock, (char *) buffer, BUFFER_SIZE, 0, (sockaddr *)&client_addr, &sock_len);
 		// non-blocking
 		if(n == -1 && errno == EWOULDBLOCK)
@@ -158,7 +169,8 @@ int main(int argc, char* argv[])
 				client_controller_map[header.connectionID] -> lastSentSeqNum = header.ackNumber;
 				client_controller_map[header.connectionID] -> timer = time(0);
 				if (!(header.ACK || header.FIN)) {
-					if (client_controller_map[header.connectionID] -> expectedSeqNum != header.sequenceNumber) {
+					// out of order means the incoming packet has seq # > current expected seq #
+					if (client_controller_map[header.connectionID] -> expectedSeqNum < header.sequenceNumber) {
 						out_of_order = true;
 						cout << "LOG: out of order packet" << endl;
 						if(debug)
@@ -167,11 +179,14 @@ int main(int argc, char* argv[])
 					else {
 						if(debug)
 							cout<<"Setting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " to: " <<to_string(header.sequenceNumber) << " + " << to_string(payloadLength)<<endl;
-						client_controller_map[header.connectionID] -> expectedSeqNum = header.sequenceNumber + payloadLength;
+						// client_controller_map[header.connectionID] -> expectedSeqNum = header.sequenceNumber + payloadLength;
 					}
 				}
 			}
 		}
+
+		// ack number determined after determine the last in-order byte 
+		bool set_ack_number = false;
 
 		// Receive SYN, establish connection
 		if (header.SYN) {
@@ -207,14 +222,19 @@ int main(int argc, char* argv[])
 		else if (header.ACK) continue;
 		// Normal case, receives packet with payload
 		else {
-			char payload[payloadLength+1];
-			memset(payload, 0, sizeof(payload));
+			char* payload = new char[payloadLength+1];
+			memset(payload, 0, payloadLength+1);
 			strcpy(payload, buffer + HEADER_SIZE);
 
-			client_controller_map[header.connectionID] -> payload_map[header.sequenceNumber] = payload;
+			(client_controller_map[header.connectionID] -> payload_map)[header.sequenceNumber] = payload;
+
 
 			int clientAckNumber = header.ackNumber;
-			header.ackNumber = header.sequenceNumber + payloadLength;
+			// if out of order, send dup ACK
+			// if (out_of_order)
+			// 	header.ackNumber = client_controller_map[header.connectionID] -> expectedSeqNum;
+			set_ack_number = true;
+
 			header.sequenceNumber = clientAckNumber;
 			header.ACK = 1;
 
@@ -226,14 +246,31 @@ int main(int argc, char* argv[])
 
 		ofstream f;
 		f.open(file_path, ios_base::app); // append to file if exist
-		if (f.is_open()) {
-			if ( !out_of_order ) 
-				f << buffer + HEADER_SIZE;
-			f.close();
-		} 
-		else {
-			cerr << "Unable to open the file: " << file_path << endl;
+		int base = client_controller_map[header.connectionID] -> expectedSeqNum;
+		// find if there is a packet with sequence number starting from the expected seq number;
+		// if so, write to file and update: expected sequence number += payload size of this packet
+		while ((client_controller_map[header.connectionID] -> payload_map).find(base) != (client_controller_map[header.connectionID] -> payload_map).end())
+		{
+			char* current_payload = (client_controller_map[header.connectionID] -> payload_map)[base];
+
+			if (debug)
+			{
+				cout << "current expected seq num is " << base << endl;
+				printf("current payload is %s\n", (client_controller_map[header.connectionID] -> payload_map)[base]);
+			}
+
+			if (f.is_open())
+				f << current_payload;
+			base += (int)(strlen(current_payload));
 		}
+		client_controller_map[header.connectionID] -> expectedSeqNum = base;
+
+		f.close();
+
+		// after we traverse the payload map and get the last in-order byte number, we can set the ack number
+		if (set_ack_number)
+			header.ackNumber = client_controller_map[header.connectionID] -> expectedSeqNum;
+
 
 		// construct and send return message
 		char out_msg [HEADER_SIZE];
