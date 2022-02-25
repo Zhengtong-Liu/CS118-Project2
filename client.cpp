@@ -88,7 +88,9 @@ int main(int argc, char* argv[])
 	int expectedAckNumber = 0; // expected ack number from server
 	int n_fragments_total = ceil(double(file_content.length()) / 512.0); // total # of fragments
 	int cur_fragment_number = 0; // the # of frament to be sent
-	time_t two_seconds_counter = (time_t)(-1); // FIN 2 second timer
+	time_t two_seconds_timer = (time_t)(-1); // FIN 2 second timer
+	time_t ten_seconds_timer = (time_t)(-1); // 10 second timer
+	time_t retransmission_timer = (time_t)(-1); // 0.5s retransmission timer
 	bool sendMessage = true; // whether a message should be sent in this round
 	Cwnd * cwnd = new Cwnd(12345); // cwnd controller
 	// =========================== SYN =====================================
@@ -116,25 +118,40 @@ int main(int argc, char* argv[])
 	int yes = 1;
 	ioctl(sock, FIONBIO, (char*)&yes);
 
-
+	// receiving loop
 	while (1) {
 		// receive messag and store in msgBuffer
 		memset(msgBuffer, 0, BUFFER_SIZE);
 
 		// non-blocking receive
 		long ret = recv(sock, msgBuffer, BUFFER_SIZE, 0);
-		if (ret == -1 && errno == EWOULDBLOCK) {
-			if (two_seconds_counter != -1 && time(0) - two_seconds_counter >= 2) {
+		if (ret == -1 && errno == EWOULDBLOCK) { // no message from server yet
+			if (two_seconds_timer != -1 && time(0) - two_seconds_timer >= 2) { // FIN times up, close connection
 				if ( close(sock) < 0 ) {
 					perror("close");
 					exit(EXIT_FAILURE);
 				}
 				break;
 			}
+			else if (ten_seconds_timer != -1 && time(0) - ten_seconds_timer >= 10) { // 10s times up, close connection
+				if ( close(sock) < 0 ) {
+					perror("close");
+					exit(EXIT_FAILURE);
+				}
+				exit(ETIMEDOUT);
+			}
+			else if (retransmission_timer != -1 && time(0) - retransmission_timer >= 0.5) { // retransmission
+				perror("Start retransmission")
+				exit(EXIT_FAILURE);
+			}
 			continue;
-		} else if (ret < 0 ) {
+		} 
+		else if (ret < 0 ) { // error receiving message from server
 			perror("recv");
 			exit(EXIT_FAILURE);
+		}
+		else { // message received, set up 10s timer
+			ten_seconds_timer = time(0);
 		}
 
 		// deconstruct message header to curHeader and print to std::out
@@ -142,20 +159,17 @@ int main(int argc, char* argv[])
 		outputMessage(curHeader, "RECV", cwnd);
 		// curHeader.ackNumber %= 102401;//note, divided by maximum seq number
 		// Check whether server ack with correct ack number
-		if (curHeader.ackNumber != expectedAckNumber && !curHeader.FIN)//
+		if (curHeader.ackNumber < expectedAckNumber && !curHeader.FIN)//
 		{
-			if(debug)
-				cout<<"Warning!!!!!!Ack mismatch:" << to_string(curHeader.ackNumber) <<"and"<<to_string(expectedAckNumber) << ", we might have loss packet"<<endl;
+			// if(debug)
+			// 	cout<<"Warning!!!!!!Ack mismatch:" << to_string(curHeader.ackNumber) <<"and"<<to_string(expectedAckNumber) << ", we might have loss packet"<<endl;
+			outputMessage(curHeader, "DROP", cwnd, true);
+			continue;
 		}
-		// if (curHeader.ackNumber > expectedAckNumber)
-		// {
-		// 	if(debug)
-		// 		cout<<"Warning!!!!!Cum Ack received is greater than the latested expectedAck" <<endl;
-		// 	perror("recv");
-		// 	exit(EXIT_FAILURE);
-		// }
+		// packet is in order, update cwnd and cumack
 		cwnd -> recvACK();
 		cwnd -> update_cumack(curHeader.ackNumber);
+		retransmission_timer = time(0);
 		// All data sent, start FIN
 		if (cur_fragment_number == n_fragments_total) {
 			cur_fragment_number ++;
@@ -198,8 +212,8 @@ int main(int argc, char* argv[])
 		else if (prevHeader.FIN && curHeader.ACK) {
 			sendMessage = false;
 			payload_len = 0;
-			if (two_seconds_counter == -1)
-				two_seconds_counter = time(0);
+			if (two_seconds_timer == -1)
+				two_seconds_timer = time(0);
 		}
 
 		// in 2 seconds waiting phase and receives FIN, responds with ACK
@@ -238,12 +252,11 @@ int main(int argc, char* argv[])
 				exit(EXIT_FAILURE);
 			}
 			outputMessage(curHeader, "SEND", cwnd);
-			// increase expected ack number by payload size
-			expectedAckNumber += payload_len;//to be changed
+			// update expected ack number by payload size
+			expectedAckNumber = (expectedAckNumber + payload_len) % MAX_ACK;
 			// Assign curHeader to prevHeader
 			prevHeader = curHeader;
 		}
-		// expectedAckNumber = expectedAckNumber % 102401;
 	}
 
 	return 0;

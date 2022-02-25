@@ -4,8 +4,10 @@
 #include <time.h>
 #include <set>
 #include <unordered_set>
+
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
+#define MAX_ACK 102400
 
 using namespace std;
 bool debug = false;
@@ -71,17 +73,17 @@ class Cwnd {
 		}
 		void update_cumack(int new_cumack)
 		{
-			cum_ack = new_cumack % 102401;
+			cum_ack = new_cumack % MAX_ACK;
 		}
 		bool checkWithinCWND(int wantToSent)
 		{
-			if(wantToSent < 102401)
+			if(wantToSent < MAX_ACK)
 			{
 				return (wantToSent > cum_ack) && (wantToSent < (cum_ack + cwnd_size));
 			}
 			else
 			{
-				return (wantToSent > cum_ack) &&  ((wantToSent % 102401) < ((cum_ack + cwnd_size)%102401));
+				return (wantToSent > cum_ack) &&  ((wantToSent % MAX_ACK) < ((cum_ack + cwnd_size) % MAX_ACK));
 			}
 		}
 };
