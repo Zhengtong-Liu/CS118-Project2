@@ -25,28 +25,34 @@ struct Header {
 class ClientBufferController
 {
 	unordered_map<int, char *> packetBuffer;
+	unordered_map<int, Header> headerBuffer;
 
 	public:
-		void insertNewBuffer(int newSeq, char * buffer) {
+		void insertNewBuffer(int newSeq, char * buffer, Header header) {
 			packetBuffer[newSeq] = buffer;
+			headerBuffer[newSeq] = header;
 		}
-		
-		char * getBuffer(int seqNumber)
+
+		void getBuffer(int seqNumber, char * buffer, Header & header)
 		{
-			if (packetBuffer.find(seqNumber) == packetBuffer.end())
-				return packetBuffer[seqNumber];
-			return NULL
+			if (packetBuffer.find(seqNumber) == packetBuffer.end()) {
+				buffer = packetBuffer[seqNumber];
+				header = headerBuffer[seqNumber];
+			}
+			else {
+				buffer = NULL;
+			}
 		}
 };
 
 // cwnd class
-class Cwnd {
+class CwndCnotroller {
 	int cwnd_size; // current cwnd window size
 	int ssthresh; // current ssthresh size
 	int max_cwnd; //max window allowed
 	int cum_ack; //newest cum ack received from server
 	public:
-		Cwnd(int initial_ack):cwnd_size(512),ssthresh(10000),max_cwnd(51200),cum_ack(initial_ack){}
+		CwndCnotroller(int initial_ack):cwnd_size(512),ssthresh(10000),max_cwnd(51200),cum_ack(initial_ack){}
 		int get_cwnd_size() //return current cwnd size 
 		{
 			return cwnd_size;
@@ -177,7 +183,7 @@ void DeconstructMessage(Header & header, char * buffer) {
 }
 
 // output debug message to std::out
-void outputMessage(Header header, string action, Cwnd * cwnd=NULL, bool isDuplicate=false) {
+void outputMessage(Header header, string action, CwndCnotroller * cwnd=NULL, bool isDuplicate=false) {
 	cout << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
 	if (cwnd)  // client, needs to output cwnd and ssthresh
 		cout << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
