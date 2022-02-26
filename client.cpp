@@ -159,7 +159,7 @@ int main(int argc, char* argv[])
 					perror("send");
 					exit(EXIT_FAILURE);
 				}
-				outputMessage(curHeader, "SEND", cwnd);
+				outputMessage(curHeader, "SEND", cwnd, true);
 			}
 			continue;
 		} 
