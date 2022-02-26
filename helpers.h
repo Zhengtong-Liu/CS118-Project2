@@ -3,11 +3,11 @@
 #include <unordered_map>
 #include <time.h>
 #include <set>
-#include <unordered_set>
+#include <unordered_map>
 
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
-#define MAX_ACK 102400
+#define MAX_ACK 102401
 
 using namespace std;
 bool debug = false;
@@ -20,31 +20,25 @@ struct Header {
 	int SYN;
 	int FIN;
 };
-// class client_bufferSeq//store in / out of order Seq Number send from server to client
-// {
-// 	unordered_set<int> buffered_server_seq;
-// 	int cum_seq = 0;
-// 	public:
-// 		client_bufferSeq(int initial_cum_seq):cum_seq(initial_cum_seq){};
-// 		void inSertNewSeq(int newSeq)
-// 		{
-// 			if(newSeq == cum_seq+1)//if it is just increase by 1, simply add 1
-// 				cum_seq += 1;
-// 			else//else store it, and try to see if continuous cum_seq formed
-// 			{
-// 				buffered_server_seq.insert(newSeq);
-// 				while(buffered_server_seq.find(cum_seq+1) != buffered_server_seq.end())
-// 				{
-// 					buffered_server_seq.erase(cum_seq+1);
-// 					cum_seq++;
-// 				}
-// 			}
-// 		}
-// 		int getCumSeq()
-// 		{
-// 			return cum_seq;
-// 		}
-// };
+
+
+class ClientBufferController
+{
+	unordered_map<int, char *> packetBuffer;
+
+	public:
+		void insertNewBuffer(int newSeq, char * buffer) {
+			packetBuffer[newSeq] = buffer;
+		}
+		
+		char * getBuffer(int seqNumber)
+		{
+			if (packetBuffer.find(seqNumber) == packetBuffer.end())
+				return packetBuffer[seqNumber];
+			return NULL
+		}
+};
+
 // cwnd class
 class Cwnd {
 	int cwnd_size; // current cwnd window size
@@ -90,7 +84,7 @@ class Cwnd {
 
 
 // manage connection with each client, identified by its connection ID
-class ClientController {
+class ServerConnectionController {
 	public:
 		int ConnectionID;
 		unordered_map <int, char*> payload_map;
@@ -98,7 +92,7 @@ class ClientController {
 		int expectedSeqNum;
 		int lastSentSeqNum;
 
-		ClientController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
+		ServerConnectionController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
 			timer = time(0);
 		}
 

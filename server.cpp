@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 	// Header previous_header {{0}};
 
 	unordered_map<int, Header> previous_header_map;
-	unordered_map<int, ClientController*> client_controller_map;
+	unordered_map<int, ServerConnectionController*> client_controller_map;
 
 	// non-blocking
 	int yes = 1;
@@ -157,7 +157,7 @@ int main(int argc, char* argv[])
 
 		// construct and modify client controller of each connection
 		if (header.SYN) {
-			client_controller_map[connectionCount + 1] = new ClientController(connectionCount+1, header.sequenceNumber+1, INITIAL_SEQ+1);
+			client_controller_map[connectionCount + 1] = new ServerConnectionController(connectionCount+1, header.sequenceNumber+1, INITIAL_SEQ+1);
 		} 
 		else {
 			// if this is not a SYN packet but cannot find connection ID of this packet in the map, drop packet
