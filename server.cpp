@@ -92,7 +92,6 @@ int main(int argc, char* argv[])
 
 	socklen_t sock_len;
 	int n;
-	bool out_of_order = false;
 	char buffer[BUFFER_SIZE];
 	memset(buffer, 0, sizeof(buffer));
 
@@ -215,7 +214,6 @@ int main(int argc, char* argv[])
 					}
 					// out of order means the incoming packet has seq # > current expected seq #
 					if (client_controller_map[header.connectionID] -> expectedSeqNum < header.sequenceNumber) {
-						out_of_order = true;
 						cout << "LOG: out of order packet" << endl;
 						if(debug)
 							cout<<"Expecting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " get: " << to_string(header.sequenceNumber);
