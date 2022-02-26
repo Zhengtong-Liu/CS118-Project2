@@ -8,6 +8,7 @@
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
 #define MAX_ACK 102401
+#define RWND 51200
 
 using namespace std;
 bool debug = false;
@@ -35,7 +36,7 @@ class ClientBufferController
 		{
 			if (packetBuffer.find(seqNumber) == packetBuffer.end())
 				return packetBuffer[seqNumber];
-			return NULL
+			return NULL;
 		}
 };
 
@@ -88,12 +89,29 @@ class ServerConnectionController {
 	public:
 		int ConnectionID;
 		unordered_map <int, char*> payload_map;
-		time_t timer;
+		time_t shut_down_timer;
+		time_t retransmission_timer;
 		int expectedSeqNum;
 		int lastSentSeqNum;
 
+		bool sentSYN;
+		bool recvSYNACK;
+		bool sentFIN;
+		bool recvFINACK;
+
+		Header SYN_header;
+		Header FIN_header;
+
+		sockaddr_in client_addr_info;
+
 		ServerConnectionController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
-			timer = time(0);
+			shut_down_timer = time(0);
+			sentSYN = false;
+			recvSYNACK = false;
+			sentFIN = false;
+			recvFINACK = false;
+			SYN_header = {0, 0, 0, 0, 0, 0};
+			FIN_header = {0, 0, 0, 0, 0, 0};
 		}
 
 };

@@ -95,6 +95,8 @@ int main(int argc, char* argv[])
 	bool out_of_order = false;
 	char buffer[BUFFER_SIZE];
 	memset(buffer, 0, sizeof(buffer));
+
+
 	// Header previous_header {{0}};
 
 	unordered_map<int, Header> previous_header_map;
@@ -109,8 +111,36 @@ int main(int argc, char* argv[])
 		// check whether any one of connections is expired
 		for (auto it : client_controller_map) 
 		{
-			time_t prev_t = it.second -> timer;
-			if ((time(0) - prev_t) >= 10) {
+			time_t retransmission_t = it.second -> retransmission_timer;
+			if ((it.second -> sentSYN && (!(it.second -> recvSYNACK))) || (it.second -> sentFIN && (!(it.second -> recvFINACK)))) {
+				if ((time(0) - retransmission_t) >= 0.5) {
+					Header temp_header;
+					if (it.second -> sentSYN && (!(it.second -> recvSYNACK)))
+						temp_header = it.second -> SYN_header;
+					else
+						temp_header = it.second -> FIN_header;
+
+					char retransmit_header [HEADER_SIZE];
+					memset(retransmit_header, 0, sizeof(retransmit_header));
+					ConstructMessage(temp_header, NULL, retransmit_header, 0);
+
+					struct sockaddr_in temp_addr;
+					memset(&temp_addr, 0, sizeof(temp_addr));
+					temp_addr = it.second -> client_addr_info;
+					socklen_t temp_sock_len = sizeof(temp_addr);
+
+					if ( (sendto(sock, retransmit_header, sizeof(retransmit_header), 0, (sockaddr *)&temp_addr, temp_sock_len)) < 0)
+					{
+						perror("sendto");
+						continue;
+					}
+					outputMessage(temp_header, "SEND");
+
+				}
+			}
+
+			time_t prev_shut_down_t = it.second -> shut_down_timer;
+			if ((time(0) - prev_shut_down_t) >= 10) {
 				for (auto it_temp: it.second -> payload_map)
 				{
 					if (it_temp.second)
@@ -119,11 +149,13 @@ int main(int argc, char* argv[])
 						it_temp.second = NULL;
 					}
 				}
+
 				delete it.second;
 				it.second = NULL;
 				client_controller_map.erase(it.first);
 				cout << "LOG: connection ID " << it.first << " expires" << endl;
-			}	
+			}
+			
 		}
 
 		sock_len = sizeof(client_addr);
@@ -165,10 +197,22 @@ int main(int argc, char* argv[])
 				outputMessage(header, "DROP");
 				continue;
 			} 
-			else { // update this client controller's information
-				client_controller_map[header.connectionID] -> lastSentSeqNum = header.ackNumber;
-				client_controller_map[header.connectionID] -> timer = time(0);
-				if (!(header.ACK || header.FIN)) {
+			else {
+				// check ACK
+				if (header.ACK) {
+					if (header.ackNumber != (INITIAL_SEQ + 1))
+					{
+						outputMessage(header, "DROP");
+						continue;
+					}
+				}
+				else if (!header.FIN) {
+					int current_base = client_controller_map[header.connectionID] -> lastSentSeqNum;
+					if ((header.sequenceNumber - current_base) > RWND)
+					{
+						outputMessage(header, "DROP");
+						continue;
+					}
 					// out of order means the incoming packet has seq # > current expected seq #
 					if (client_controller_map[header.connectionID] -> expectedSeqNum < header.sequenceNumber) {
 						out_of_order = true;
@@ -182,6 +226,9 @@ int main(int argc, char* argv[])
 						// client_controller_map[header.connectionID] -> expectedSeqNum = header.sequenceNumber + payloadLength;
 					}
 				}
+				// update this client controller's information
+				client_controller_map[header.connectionID] -> lastSentSeqNum = header.ackNumber;
+				client_controller_map[header.connectionID] -> shut_down_timer = time(0);
 			}
 		}
 
@@ -196,13 +243,21 @@ int main(int argc, char* argv[])
 			header.sequenceNumber  = INITIAL_SEQ;
 			header.ACK = 1;
 			header.SYN = 1;
+
+			sockaddr_in current_client_addr = client_addr;
+			client_controller_map[header.connectionID] -> client_addr_info = current_client_addr;
+			
+			client_controller_map[header.connectionID] -> sentSYN = true;
+			client_controller_map[header.connectionID] -> retransmission_timer = time(0);
+			client_controller_map[header.connectionID] -> SYN_header = header;
+			
 		}
 		// SYN ACK
-		else if (previous_header_map[header.connectionID].SYN && header.ACK) {
-			previous_header_map[header.connectionID].SYN = 0;
-			previous_header_map[header.connectionID].ACK = 0;
-			continue;
-		}
+		// else if (previous_header_map[header.connectionID].SYN && header.ACK) {
+		// 	previous_header_map[header.connectionID].SYN = 0;
+		// 	previous_header_map[header.connectionID].ACK = 0;
+		// 	continue;
+		// }
 		// FIN
 		else if (header.FIN) {
 			header.ackNumber = header.sequenceNumber + 1;
@@ -217,11 +272,32 @@ int main(int argc, char* argv[])
 			fin_header.ACK = 0;
 			fin_header.FIN = 1;
 
+			client_controller_map[header.connectionID] -> sentFIN = true;
+			client_controller_map[header.connectionID] -> retransmission_timer = time(0);
+			client_controller_map[header.connectionID] -> FIN_header = fin_header;
+
+
 		} 
 		// receives ACK, do nothing
-		else if (header.ACK) continue;
+		else if (header.ACK)
+		{
+			if (previous_header_map[header.connectionID].SYN) {
+				// did not check seq #, ack #
+				client_controller_map[header.connectionID] -> recvSYNACK = true;
+			} else if (previous_header_map[header.connectionID].FIN) {
+				client_controller_map[header.connectionID] -> recvFINACK = true;
+				continue;
+			} else
+				continue;
+		}
 		// Normal case, receives packet with payload
 		else {
+
+			if (previous_header_map[header.connectionID].SYN && header.ACK) {
+				previous_header_map[header.connectionID].SYN = 0;
+				previous_header_map[header.connectionID].ACK = 0;
+			}
+
 			char* payload = new char[payloadLength+1];
 			memset(payload, 0, payloadLength+1);
 			strcpy(payload, buffer + HEADER_SIZE);
