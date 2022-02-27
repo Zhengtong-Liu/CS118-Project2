@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <time.h>
+#include <netdb.h>
 
 
 #include "helpers.h"
@@ -63,17 +64,43 @@ int main(int argc, char* argv[])
 
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(port);
-	
+	bool hostname = false;
 	// Convert IP address from string to binary form
 	if( !inet_pton(AF_INET, server_ip.c_str(), &server_addr.sin_addr)){
-		cerr << "Wrong IP address" << endl;
-		exit(EXIT_FAILURE);
+		//referenced from https://man7.org/linux/man-pages/man3/getaddrinfo.3.html
+		struct addrinfo hints;
+		struct addrinfo *result, *rp;
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
+		hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+		hints.ai_flags = 0;
+		hints.ai_protocol = 0;  
+		hostname = true;
+		int s;
+		s = getaddrinfo(server_ip.c_str(), argv[2], &hints, &result);
+		if (s != 0) {
+			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+			exit(EXIT_FAILURE);
+		}
+		for (rp = result; rp != NULL; rp = rp->ai_next) {
+			if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1)
+			{
+				break;                  /* Success */
+			}
+		}
+		freeaddrinfo(result);           /* No longer needed */
+		if (rp == NULL) {               /* No address succeeded */
+			cerr << "Wrong IP address" << endl;
+			exit(EXIT_FAILURE);
+		}
 	}
-
-	int ret;
-	if ( (ret = connect(sock, (sockaddr*)&server_addr, sizeof(server_addr))) < 0 ) {
-		perror("connect");
-		exit(EXIT_FAILURE);
+	int ret;	
+	if(!hostname)
+	{
+		if ( (ret = connect(sock, (sockaddr*)&server_addr, sizeof(server_addr))) < 0 ) {
+			perror("connect");
+			exit(EXIT_FAILURE);
+		}
 	}
 	//==========================================SocketCreation-END=============================
 
@@ -136,6 +163,8 @@ int main(int argc, char* argv[])
 				if (time(0) - two_seconds_timer >= 2) { // FIN times up, close connection
 					if ( close(sock) < 0 ) {
 						perror("close");
+						delete cwnd;
+						delete bufferController;
 						exit(EXIT_FAILURE);
 					}
 					break;
@@ -144,8 +173,12 @@ int main(int argc, char* argv[])
 			else if (ten_seconds_timer != -1 && time(0) - ten_seconds_timer >= 10) { // 10s times up, close connection
 				if ( close(sock) < 0 ) {
 					perror("close");
+					delete cwnd;
+					delete bufferController;
 					exit(EXIT_FAILURE);
 				}
+				delete cwnd;
+				delete bufferController;
 				exit(ETIMEDOUT);
 			}
 			else if (retransmission_timer != -1 && time(0) - retransmission_timer >= 0.5) { // retransmission timeout
@@ -155,6 +188,8 @@ int main(int argc, char* argv[])
 				bufferController -> getBuffer(lastAckNumber, retransmitBuffer, curHeader);
 				if ( (ret = send(sock, retransmitBuffer, sizeof(retransmitBuffer), 0)) < 0 ) {
 					perror("send");
+					delete cwnd;
+					delete bufferController;
 					exit(EXIT_FAILURE);
 				}
 				outputMessage(curHeader, "SEND", cwnd, true);
@@ -164,6 +199,8 @@ int main(int argc, char* argv[])
 		} 
 		else if (ret < 0 ) { // error receiving message from server
 			perror("recv");
+			delete cwnd;
+			delete bufferController;
 			exit(EXIT_FAILURE);
 		}
 		else { // message received, set up 10s timer
@@ -178,9 +215,13 @@ int main(int argc, char* argv[])
 		}
 		// print to std::out
 		outputMessage(curHeader, "RECV", cwnd);
-		// wrong ack number || duplicate ack
-		if (curHeader.ackNumber  > expectedAckNumber || (curHeader.ackNumber == lastAckNumber && !curHeader.FIN))
+		// wrong ack number or duplicate ack
+		if (expectedAckNumber > lastAckNumber && (curHeader.ackNumber > expectedAckNumber || (curHeader.ackNumber <= lastAckNumber && !curHeader.FIN))) {
 			continue;
+		}
+		else if (expectedAckNumber < lastAckNumber && (curHeader.ackNumber > expectedAckNumber && (curHeader.ackNumber <= lastAckNumber && !curHeader.FIN))) {
+			continue;
+		}
 		else // update payloadSizeAcked
 			payloadSizeAcked = curHeader.ackNumber - 12346;
 
@@ -280,6 +321,8 @@ int main(int argc, char* argv[])
 				ConstructMessage(curHeader, payload, msgBuffer, payloadSizeToBeSent);
 				if ( (ret = send(sock, msgBuffer, HEADER_SIZE + payloadSizeToBeSent, 0)) < 0 ) {
 					perror("send");
+					delete cwnd;
+					delete bufferController;
 					exit(EXIT_FAILURE);
 				}
 				outputMessage(curHeader, "SEND", cwnd);
@@ -291,10 +334,12 @@ int main(int argc, char* argv[])
 				// Assign curHeader to prevHeader
 				prevHeader = curHeader;
 				// update sequence number
-				curHeader.sequenceNumber = prevHeader.sequenceNumber + payloadSizeToBeSent;
+				curHeader.sequenceNumber = expectedAckNumber;
 			}
 		}
 	}
+	delete cwnd;
+	delete bufferController;
 
 	return 0;
 }

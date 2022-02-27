@@ -144,26 +144,24 @@ int main(int argc, char* argv[])
 					it.second -> retransmission_timer = time(0);
 				}
 			}
+		}
 
+		for (auto it = client_controller_map.begin(); it != client_controller_map.end();) 
+		{
 			// retrieve the shut down timer, remove from client controller map if time out
-			time_t prev_shut_down_t = it.second -> shut_down_timer;
+			time_t prev_shut_down_t = (it -> second) -> shut_down_timer;
 			if ((time(0) - prev_shut_down_t) >= 10) {
-				for (auto it_temp: it.second -> payload_map)
-				{
-					if (it_temp.second)
-					{
-						delete it_temp.second;
-						it_temp.second = NULL;
-					}
-					(it.second -> payload_map).erase(it_temp.first);
-				}
-
-				delete it.second;
-				it.second = NULL;
-				client_controller_map.erase(it.first);
-				cout << "LOG: connection ID " << it.first << " expires" << endl;
+				if(debug)
+					cout << "reach line 165" << endl;
+				delete it->second;
+				it->second = NULL;
+				if(debug)
+					cout << "reach line 169" << endl;
+				cout << "LOG: connection ID " << (it -> first) << " expires" << endl;
+				it = client_controller_map.erase(it);
 			}
-			
+			else 
+				it ++;
 		}
 
 		sock_len = sizeof(client_addr);

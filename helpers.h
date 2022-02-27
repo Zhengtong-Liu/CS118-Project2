@@ -11,7 +11,7 @@
 #define RWND 51200
 
 using namespace std;
-bool debug = true;
+bool debug = false;
 // Struct that stores header fields
 struct Header {
 	int sequenceNumber;
@@ -120,7 +120,14 @@ class ServerConnectionController {
 			SYN_header = {0, 0, 0, 0, 0, 0};
 			FIN_header = {0, 0, 0, 0, 0, 0};
 		}
-
+		~ServerConnectionController() {
+			for (auto it: payload_map) {
+				if (it.second) {
+					delete it.second;
+					it.second = NULL;
+				}
+			}
+		}
 };
 
 int safeportSTOI(string stringnumber) {
