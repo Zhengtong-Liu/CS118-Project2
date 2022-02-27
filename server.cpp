@@ -155,6 +155,7 @@ int main(int argc, char* argv[])
 						delete it_temp.second;
 						it_temp.second = NULL;
 					}
+					(it.second -> payload_map).erase(it_temp.first);
 				}
 
 				delete it.second;
@@ -214,12 +215,12 @@ int main(int argc, char* argv[])
 					int offset = (previous_header_map[header.connectionID].FIN || previous_header_map[header.connectionID].SYN) ? 1 : 0;
 					if (header.ackNumber != client_controller_map[header.connectionID] -> lastSentSeqNum + offset)
 					{
-						if (debug)
-						{
-							cout << "current last sent seq num " << client_controller_map[header.connectionID] -> lastSentSeqNum + offset << endl;
-							cout << "header.ackNumber: " << header.ackNumber << endl;
-							cout << "Drop due to ack != last seq num" << endl;
-						}
+						// if (debug)
+						// {
+						// 	cout << "current last sent seq num " << client_controller_map[header.connectionID] -> lastSentSeqNum + offset << endl;
+						// 	cout << "header.ackNumber: " << header.ackNumber << endl;
+						// 	cout << "Drop due to ack != last seq num" << endl;
+						// }
 
 						outputMessage(header, "DROP");
 						continue;
@@ -230,8 +231,8 @@ int main(int argc, char* argv[])
 					int current_base = client_controller_map[header.connectionID] -> expectedSeqNum;
 					if ((header.sequenceNumber - current_base) > RWND)
 					{
-						if(debug)
-							cout << "Drop due to rwnd > 51200" << endl;
+						// if(debug)
+						// 	cout << "Drop due to rwnd > 51200" << endl;
 						outputMessage(header, "DROP");
 						continue;
 					}
@@ -251,17 +252,17 @@ int main(int argc, char* argv[])
 				client_controller_map[header.connectionID] -> shut_down_timer = time(0);
 			}
 		}
-		if(debug)
-			cout << "get line 243" << endl;
+		// if(debug)
+		// 	cout << "get line 243" << endl;
 		// ack number determined after determine the last in-order byte 
 		bool set_ack_number = false;
-		if (debug)
-		{
-			cout << "current SYN is " << header.SYN << endl;
-			cout << "current FIN is " << header.FIN << endl;
-			cout << "current ACK is " << header.ACK << endl;
-			cout << "previous_header_map[header.connectionID].SYN is " << previous_header_map[header.connectionID].SYN << endl;
-		}
+		// if (debug)
+		// {
+		// 	cout << "current SYN is " << header.SYN << endl;
+		// 	cout << "current FIN is " << header.FIN << endl;
+		// 	cout << "current ACK is " << header.ACK << endl;
+		// 	cout << "previous_header_map[header.connectionID].SYN is " << previous_header_map[header.connectionID].SYN << endl;
+		// }
 		// Receive SYN, establish connection
 		if (header.SYN) {
 			connectionCount ++;
@@ -288,8 +289,8 @@ int main(int argc, char* argv[])
 		// }
 		// FIN
 		else if (header.FIN) {
-			if(debug)
-				cout << "Get in line 278" << endl;
+			// if(debug)
+			// 	cout << "Get in line 278" << endl;
 			header.ackNumber = header.sequenceNumber + 1;
 			// [NOT SURE] For FIN ACK, set seq # to previous seq #
 			header.sequenceNumber = previous_header_map[connectionCount].sequenceNumber;
@@ -311,8 +312,8 @@ int main(int argc, char* argv[])
 		// receives ACK, do nothing
 		else if (header.ACK && (!previous_header_map[header.connectionID].SYN))
 		{
-			if(debug)
-				cout <<"Get in line 301" << endl;
+			// if(debug)
+			// 	cout <<"Get in line 301" << endl;
 			if (previous_header_map[header.connectionID].FIN) {
 				{
 					client_controller_map[header.connectionID] -> recvFINACK = true;
@@ -365,11 +366,11 @@ int main(int argc, char* argv[])
 		{
 			char* current_payload = (client_controller_map[header.connectionID] -> payload_map)[base];
 
-			if (debug)
-			{
-				cout << "current expected seq num is " << base << endl;
-				printf("current payload is %s\n", (client_controller_map[header.connectionID] -> payload_map)[base]);
-			}
+			// if (debug)
+			// {
+			// 	cout << "current expected seq num is " << base << endl;
+			// 	printf("current payload is %s\n", (client_controller_map[header.connectionID] -> payload_map)[base]);
+			// }
 
 			if (f.is_open())
 				f << current_payload;

@@ -129,8 +129,6 @@ int main(int argc, char* argv[])
 	while (1) {
 		// receive messag and store in msgBuffer
 		memset(msgBuffer, 0, BUFFER_SIZE);
-		if(debug)
-			cout << "Reach Line 133" << endl;
 		// non-blocking receive
 		long ret = recv(sock, msgBuffer, BUFFER_SIZE, 0);
 		if (ret == -1 && errno == EWOULDBLOCK) { // no message from server yet
@@ -243,9 +241,8 @@ int main(int argc, char* argv[])
 			curHeader.ACK = 0;
 			curHeader.SYN = 0;
 			curHeader.FIN = 0;
-			int cur_ack = curHeader.ackNumber;
 			curHeader.ackNumber = curHeader.sequenceNumber;
-			curHeader.sequenceNumber = cur_ack;	
+			curHeader.sequenceNumber = expectedAckNumber;	
 			payloadSizeCapacity = cwnd->get_cwnd_size() - (payloadSizeSent - payloadSizeAcked);
 		}
 
@@ -263,7 +260,7 @@ int main(int argc, char* argv[])
 						payloadSizeCapacity -= MAX_PAYLOAD_SIZE;
 					}
 					else {
-						payloadSizeToBeSent = payloadSizeTotal;
+						payloadSizeToBeSent = payloadSizeTotal - payloadSizeSent;
 						payloadSizeCapacity = 0;
 					}
 				}
@@ -274,7 +271,8 @@ int main(int argc, char* argv[])
 						payloadSizeToBeSent = payloadSizeCapacity;
 					payloadSizeCapacity = 0;
 				}
-				memset(payload, 0, sizeof(payload));
+				// cout << payloadSizeCapacity << " " << payloadSizeAcked << " " << payloadSizeSent << " " << payloadSizeToBeSent << " " << payloadSizeTotal << endl;
+				memset(payload, 0, MAX_PAYLOAD_SIZE);
 				strncpy(payload, file_content.c_str() + payloadSizeSent, payloadSizeToBeSent);
 				payloadSizeSent += payloadSizeToBeSent;
 				// construct and send message to server
@@ -289,6 +287,7 @@ int main(int argc, char* argv[])
 				expectedAckNumber = (expectedAckNumber + payloadSizeToBeSent) % MAX_ACK;
 				// store packet in buffer
 				bufferController -> insertNewBuffer(curHeader.sequenceNumber, payload, curHeader);
+
 				// Assign curHeader to prevHeader
 				prevHeader = curHeader;
 				// update sequence number

@@ -36,13 +36,14 @@ class ClientBufferController
 
 		void getBuffer(int seqNumber, char * buffer, Header & header)
 		{
-			if (packetBuffer.find(seqNumber) == packetBuffer.end()) {
+			if (packetBuffer.find(seqNumber) != packetBuffer.end()) {
 				buffer = packetBuffer[seqNumber];
 				header = headerBuffer[seqNumber];
 			}
 			else {
 				buffer = NULL;
 			}
+
 		}
 };
 
