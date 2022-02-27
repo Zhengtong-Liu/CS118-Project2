@@ -11,7 +11,7 @@
 #define RWND 51200
 
 using namespace std;
-bool debug = false;
+bool debug = true;
 // Struct that stores header fields
 struct Header {
 	int sequenceNumber;

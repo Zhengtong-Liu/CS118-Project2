@@ -98,7 +98,6 @@ int main(int argc, char* argv[])
 	time_t retransmission_timer = (time_t)(-1); // 0.5s retransmission timer
 
 	bool sendMessage = true; // whether a message should be sent in this round
-	bool hasPayload = true; // whether the packet sent this round has payload
 	CwndCnotroller * cwnd = new CwndCnotroller(12345); // cwnd controller
 	ClientBufferController * bufferController = new ClientBufferController(); // client buffer controller
 
@@ -126,21 +125,23 @@ int main(int argc, char* argv[])
 	// non-blocking
 	int yes = 1;
 	ioctl(sock, FIONBIO, (char*)&yes);
-
 	// receiving loop
 	while (1) {
 		// receive messag and store in msgBuffer
 		memset(msgBuffer, 0, BUFFER_SIZE);
-
+		if(debug)
+			cout << "Reach Line 133" << endl;
 		// non-blocking receive
 		long ret = recv(sock, msgBuffer, BUFFER_SIZE, 0);
 		if (ret == -1 && errno == EWOULDBLOCK) { // no message from server yet
-			if (two_seconds_timer != -1 && time(0) - two_seconds_timer >= 2) { // FIN times up, close connection
-				if ( close(sock) < 0 ) {
-					perror("close");
-					exit(EXIT_FAILURE);
+			if (two_seconds_timer != -1) {
+				if (time(0) - two_seconds_timer >= 2) { // FIN times up, close connection
+					if ( close(sock) < 0 ) {
+						perror("close");
+						exit(EXIT_FAILURE);
+					}
+					break;
 				}
-				break;
 			}
 			else if (ten_seconds_timer != -1 && time(0) - ten_seconds_timer >= 10) { // 10s times up, close connection
 				if ( close(sock) < 0 ) {
@@ -151,7 +152,6 @@ int main(int argc, char* argv[])
 			}
 			else if (retransmission_timer != -1 && time(0) - retransmission_timer >= 0.5) { // retransmission timeout
 				cwnd ->	timeout();
-				exit(122);
 				// retransmit last unacked packet
 				char retransmitBuffer [MAX_PAYLOAD_SIZE] = {0};
 				bufferController -> getBuffer(lastAckNumber, retransmitBuffer, curHeader);
@@ -160,6 +160,7 @@ int main(int argc, char* argv[])
 					exit(EXIT_FAILURE);
 				}
 				outputMessage(curHeader, "SEND", cwnd, true);
+				retransmission_timer = time(0);
 			}
 			continue;
 		} 
@@ -170,36 +171,43 @@ int main(int argc, char* argv[])
 		else { // message received, set up 10s timer
 			ten_seconds_timer = time(0);
 		}
-		// deconstruct message header to curHeader and print to std::out
+		// deconstruct message header to curHeader 
 		DeconstructMessage(curHeader, msgBuffer);
+		// packet is in order, update cwnd and cumack
+		if (!(curHeader.SYN || curHeader.FIN)) {
+			cwnd -> recvACK();
+			cwnd -> update_cumack(curHeader.ackNumber);
+		}
+		// print to std::out
 		outputMessage(curHeader, "RECV", cwnd);
 		// wrong ack number || duplicate ack
 		if (curHeader.ackNumber  > expectedAckNumber || (curHeader.ackNumber == lastAckNumber && !curHeader.FIN))
 			continue;
+		else // update payloadSizeAcked
+			payloadSizeAcked = curHeader.ackNumber - 12346;
+
 		// update last acknowledged number
 		lastAckNumber = lastAckNumber < curHeader.ackNumber ? curHeader.ackNumber : lastAckNumber;
-		// packet is in order, update cwnd and cumack
-		cwnd -> recvACK();
-		cwnd -> update_cumack(curHeader.ackNumber);
+
 		retransmission_timer = time(0);
 		// All data sent, start FIN
 		if (payloadSizeAcked == payloadSizeTotal) {
 			payloadSizeAcked ++;
 			sendMessage = true;
-			hasPayload = false;
-			expectedAckNumber ++;//to be changed
+			expectedAckNumber ++; //to be changed
 			// construct header
 			curHeader.SYN = 0;
 			curHeader.ACK = 0;
 			curHeader.FIN = 1;
 			curHeader.sequenceNumber = curHeader.ackNumber;
 			curHeader.ackNumber = 0;
+			// pseudo payload capacity to facilitate packet sending process
+			payloadSizeCapacity = -1;
 		}
 
 		// SYN ACK case, responde with ACK message and first data message
 		else if (prevHeader.SYN && curHeader.SYN && curHeader.ACK) {
 			sendMessage = true;
-			hasPayload = true;
 			curHeader.SYN = 0;
 			curHeader.ACK = 1;	// responde with ack message
 			curHeader.FIN = 0;
@@ -210,27 +218,28 @@ int main(int argc, char* argv[])
 		}
 
 		// FIN ACK case, start waiting 2 seconds
-		else if (prevHeader.FIN && curHeader.ACK) {
-			sendMessage = false;
-			if (two_seconds_timer == -1)
-				two_seconds_timer = time(0);
-		}
-
-		// in 2 seconds waiting phase and receives FIN, responds with ACK
-		else if (prevHeader.FIN && curHeader.FIN) {
-			sendMessage = true;
-			hasPayload = false;
-			curHeader.ACK = 1;
-			curHeader.SYN = 0;
-			curHeader.FIN = 0;
-			curHeader.ackNumber = curHeader.sequenceNumber + 1;
-			curHeader.sequenceNumber = prevHeader.sequenceNumber + 1;
+		else if (prevHeader.FIN) {
+			if (curHeader.ACK) {
+				sendMessage = false;
+				if (two_seconds_timer == -1)
+					two_seconds_timer = time(0);
+			}
+			// in 2 seconds waiting phase and receives FIN, responds with ACK
+			if (curHeader.FIN) {
+				sendMessage = true;
+				curHeader.ACK = 1;
+				curHeader.SYN = 0;
+				curHeader.FIN = 0;
+				curHeader.ackNumber = curHeader.sequenceNumber + 1;
+				curHeader.sequenceNumber = prevHeader.sequenceNumber + 1;
+				// pseudo payload capacity to facilitate packet sending process
+				payloadSizeCapacity = -1;
+			}
 		}
 
 		// The rest case, send subsequent packet
 		else if (payloadSizeSent < payloadSizeTotal){
 			sendMessage = true;
-			hasPayload = true;
 			curHeader.ACK = 0;
 			curHeader.SYN = 0;
 			curHeader.FIN = 0;
@@ -239,28 +248,35 @@ int main(int argc, char* argv[])
 			curHeader.sequenceNumber = cur_ack;	
 			payloadSizeCapacity = cwnd->get_cwnd_size() - (payloadSizeSent - payloadSizeAcked);
 		}
+
 		if (sendMessage) {
 			// construct the payload size of the current packet
-			while ((!hasPayload) || payloadSizeCapacity > 0) {
-				if (!hasPayload) // SYN/FIN case, no payload
+			while (payloadSizeCapacity != 0) {
+				if (payloadSizeCapacity == -1) { // SYN/FIN case, no payload
 					payloadSizeToBeSent = 0;
+					payloadSizeCapacity = 0;
+				}
 				// determine the current packet size
 				else if (payloadSizeCapacity > MAX_PAYLOAD_SIZE) {
-					if (payloadSizeTotal - payloadSizeSent > MAX_PAYLOAD_SIZE)
+					if (payloadSizeTotal - payloadSizeSent > MAX_PAYLOAD_SIZE) {
 						payloadSizeToBeSent = MAX_PAYLOAD_SIZE;
-					else
+						payloadSizeCapacity -= MAX_PAYLOAD_SIZE;
+					}
+					else {
 						payloadSizeToBeSent = payloadSizeTotal;
+						payloadSizeCapacity = 0;
+					}
 				}
 				else {
-					if (payloadSizeTotal - payloadSizeSent < payloadSizeCapacity)
+					if (payloadSizeTotal - payloadSizeSent < payloadSizeCapacity) 
 						payloadSizeToBeSent = payloadSizeTotal - payloadSizeSent;
 					else
 						payloadSizeToBeSent = payloadSizeCapacity;
+					payloadSizeCapacity = 0;
 				}
 				memset(payload, 0, sizeof(payload));
 				strncpy(payload, file_content.c_str() + payloadSizeSent, payloadSizeToBeSent);
 				payloadSizeSent += payloadSizeToBeSent;
-				payloadSizeCapacity -= payloadSizeToBeSent;
 				// construct and send message to server
 				memset(msgBuffer, 0, BUFFER_SIZE);
 				ConstructMessage(curHeader, payload, msgBuffer, payloadSizeToBeSent);
