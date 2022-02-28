@@ -78,13 +78,14 @@ int main(int argc, char* argv[])
 
 	// open directory to save files
 	char dir[BUFFER_SIZE] = {0};
-	if (getcwd(dir, sizeof(dir)) == NULL) {
-		perror("getcwd");
-		exit(EXIT_FAILURE);
-	}
+	// if (getcwd(dir, sizeof(dir)) == NULL) {
+	// 	perror("getcwd");
+	// 	exit(EXIT_FAILURE);
+	// }
 	strcat(dir, file_dir.c_str());
 	if (mkdir(dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
 		if (errno != EEXIST) {
+			// cerr << "directory is " << dir << endl;
 			perror("mkdir");
 			exit(EXIT_FAILURE);
 		}
@@ -177,7 +178,7 @@ int main(int argc, char* argv[])
 			memset(buffer, 0, sizeof(buffer));
 			continue;
 		}
-
+		// cerr << "actual buffer length is " << n << endl;
 		// Extract header and payload
 		// header
 		Header header = {0, 0, 0, 0, 0, 0};
@@ -185,9 +186,11 @@ int main(int argc, char* argv[])
 
 		DeconstructMessage(header, buffer);
 		outputMessage(header, "RECV");
-		int payloadLength = strlen(buffer + HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
-		cout << "Payloadlength: " << to_string(payloadLength)<<endl;
-
+		int payloadLength = (header.SYN || header.FIN) ? 0 : (n - HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
+		// cerr << "Payloadlength: " << to_string(payloadLength)<<endl;
+		if (payloadLength < 0) {
+			outputMessage(header, "DROP");
+		}
 		// flag bits
 		header.ACK = (buffer[11] & 4) != 0;
 		header.SYN = (buffer[11] & 2) != 0;
@@ -244,6 +247,7 @@ int main(int argc, char* argv[])
 						if(debug)
 							cout<<"Setting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " to: " <<to_string(header.sequenceNumber) << " + " << to_string(payloadLength)<<endl;
 						// client_controller_map[header.connectionID] -> expectedSeqNum = header.sequenceNumber + payloadLength;
+						// cerr <<"Setting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " to: " <<to_string(header.sequenceNumber) << " + " << to_string(payloadLength)<<endl;
 					}
 				}
 				// update this client controller's information
@@ -326,18 +330,14 @@ int main(int argc, char* argv[])
 		// Normal case, receives packet with payload
 		else {
 
-			if (previous_header_map[header.connectionID].SYN && header.ACK) {
-				client_controller_map[header.connectionID] -> recvSYNACK = true;
-
-				previous_header_map[header.connectionID].SYN = 0;
-				previous_header_map[header.connectionID].ACK = 0;
-			}
-
 			char* payload = new char[payloadLength+1];
 			memset(payload, 0, payloadLength+1);
 			strcpy(payload, buffer + HEADER_SIZE);
 
-			(client_controller_map[header.connectionID] -> payload_map)[header.sequenceNumber] = payload;
+			if (payloadLength > 0) {
+				(client_controller_map[header.connectionID] -> payload_map)[header.sequenceNumber] = payload;
+				(client_controller_map[header.connectionID] -> payload_length_map)[header.sequenceNumber] = payloadLength;
+			}
 
 
 			int clientAckNumber = header.ackNumber;
@@ -346,7 +346,15 @@ int main(int argc, char* argv[])
 			// 	header.ackNumber = client_controller_map[header.connectionID] -> expectedSeqNum;
 			set_ack_number = true;
 
-			header.sequenceNumber = clientAckNumber;
+			if (previous_header_map[header.connectionID].SYN && header.ACK) {
+				client_controller_map[header.connectionID] -> recvSYNACK = true;
+
+				previous_header_map[header.connectionID].SYN = 0;
+				previous_header_map[header.connectionID].ACK = 0;
+				header.sequenceNumber = clientAckNumber;
+			} else {
+				header.sequenceNumber = previous_header_map[header.connectionID].sequenceNumber;
+			}
 			header.ACK = 1;
 
 		}
@@ -355,8 +363,8 @@ int main(int argc, char* argv[])
 		string file_path (dir);
 		file_path += "/" + to_string(connectionCount) + ".file";
 
-		ofstream f;
-		f.open(file_path, ios_base::app); // append to file if exist
+		fstream f;
+		f.open(file_path, ios_base::app | ios::binary); // append to file if exist
 		int base = client_controller_map[header.connectionID] -> expectedSeqNum;
 		// find if there is a packet with sequence number starting from the expected seq number;
 		// if so, write to file and update: expected sequence number += payload size of this packet
@@ -369,11 +377,11 @@ int main(int argc, char* argv[])
 			// 	cout << "current expected seq num is " << base << endl;
 			// 	printf("current payload is %s\n", (client_controller_map[header.connectionID] -> payload_map)[base]);
 			// }
-
-			if (f.is_open())
-				f << current_payload;
-			base += (int)(strlen(current_payload));
+			int current_payload_length = (client_controller_map[header.connectionID] -> payload_length_map)[base];
+			f.write(current_payload, current_payload_length);
+			base += current_payload_length;
 		}
+		// cerr << "current base is " << base << endl;
 		client_controller_map[header.connectionID] -> expectedSeqNum = base;
 
 		f.close();

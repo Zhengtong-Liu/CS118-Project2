@@ -97,6 +97,7 @@ class ServerConnectionController {
 	public:
 		int ConnectionID;
 		unordered_map <int, char*> payload_map;
+		unordered_map <int, int> payload_length_map;
 		time_t shut_down_timer;
 		time_t retransmission_timer;
 		int expectedSeqNum;
