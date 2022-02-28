@@ -30,9 +30,15 @@ class ClientBufferController
 	unordered_map<int, Header> headerBuffer;
 
 	public:
-		void insertNewBuffer(int newSeq, char * buffer, Header header) {
-			packetBuffer[newSeq] = buffer;
-			headerBuffer[newSeq] = header;
+		ClientBufferController () {
+			for (int i = 0; i < MAX_ACK; i++) {
+				packetBuffer[i] = new char[HEADER_SIZE + MAX_PAYLOAD_SIZE];
+			}
+		}
+		void insertNewBuffer(int seqNumber, char * buffer, Header header) {
+			memset(packetBuffer[seqNumber], 0, HEADER_SIZE + MAX_PAYLOAD_SIZE);
+			strncpy(packetBuffer[seqNumber], buffer, HEADER_SIZE + MAX_PAYLOAD_SIZE);
+			headerBuffer[seqNumber] = header;
 		}
 
 		void getBuffer(int seqNumber, char * buffer, Header & header)
@@ -44,7 +50,6 @@ class ClientBufferController
 			else {
 				buffer = NULL;
 			}
-
 		}
 };
 

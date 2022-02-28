@@ -112,7 +112,6 @@ int main(int argc, char* argv[])
 	char msgBuffer[BUFFER_SIZE]; // buffer to store received/sent message
 	int expectedAckNumber = 0; // expected ack number from server
 	int lastAckNumber = 0; // last Acked number from server
-
 	int payloadSizeTotal = file_content.length(); // total size of payload
 	int payloadSizeSent = 0; // size of payload sent
 	int payloadSizeAcked = 0; // size of payload acked by server
@@ -221,11 +220,13 @@ int main(int argc, char* argv[])
 		else if (expectedAckNumber < lastAckNumber && (curHeader.ackNumber > expectedAckNumber && (curHeader.ackNumber <= lastAckNumber && !curHeader.FIN))) {
 			continue;
 		}
-		else // update payloadSizeAcked
-			payloadSizeAcked = curHeader.ackNumber - 12346;
-
-		// update last acknowledged number
-		lastAckNumber = lastAckNumber < curHeader.ackNumber ? curHeader.ackNumber : lastAckNumber;
+		else { // update payloadSizeAcked and last acknowledged number
+			payloadSizeAcked += curHeader.ackNumber - lastAckNumber;
+			if (curHeader.ackNumber <= 512 && lastAckNumber > 512) // cycled around
+				payloadSizeAcked += MAX_ACK;
+			lastAckNumber = curHeader.ackNumber;
+		}
+		cout << payloadSizeAcked << " " << expectedAckNumber << " " << lastAckNumber << endl;
 
 		retransmission_timer = time(0);
 		// All data sent, start FIN
@@ -313,7 +314,8 @@ int main(int argc, char* argv[])
 				}
 				// cout << payloadSizeCapacity << " " << payloadSizeAcked << " " << payloadSizeSent << " " << payloadSizeToBeSent << " " << payloadSizeTotal << endl;
 				memset(payload, 0, MAX_PAYLOAD_SIZE);
-				strncpy(payload, file_content.c_str() + payloadSizeSent, payloadSizeToBeSent);
+				int length = file_content.copy(payload, payloadSizeToBeSent, payloadSizeSent);
+  				payload[length] = '\0';
 				payloadSizeSent += payloadSizeToBeSent;
 				// construct and send message to server
 				memset(msgBuffer, 0, BUFFER_SIZE);
@@ -329,7 +331,6 @@ int main(int argc, char* argv[])
 				expectedAckNumber = (expectedAckNumber + payloadSizeToBeSent) % MAX_ACK;
 				// store packet in buffer
 				bufferController -> insertNewBuffer(curHeader.sequenceNumber, payload, curHeader);
-
 				// Assign curHeader to prevHeader
 				prevHeader = curHeader;
 				// update sequence number
