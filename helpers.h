@@ -161,7 +161,9 @@ int getIntFromCharArr (char * arr, int size) {
 	int magnitude = 1;
 	int num = 0;
 
-	char reverse[size] = {0};
+	char reverse[size];
+	memset(reverse, 0, size);
+
 	for (int k = 0; k < size; k++) {
 		reverse[k] = arr[size-k-1];
 	}
@@ -180,7 +182,8 @@ int getIntFromCharArr (char * arr, int size) {
 // e.g.: 4 -> 00000010 
 void setCharArrFromInt(int num, char * arr, int n_bytes) {
 
-	char reverse[n_bytes] = {0};
+	char reverse[n_bytes];
+	memset(reverse, 0, n_bytes);
 
 	int magnitude = 0;
 	while (num != 0) {
@@ -232,4 +235,17 @@ void outputMessage(Header header, string action, CwndCnotroller * cwnd=NULL, boo
 	if (isDuplicate)
 		cout << " DUP";
 	cout << endl;
+
+	// cerr << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
+	// if (cwnd)  // client, needs to output cwnd and ssthresh
+	// 	cerr << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
+	// if (header.ACK)
+	// 	cerr << " ACK";
+	// if (header.SYN)
+	// 	cerr << " SYN";
+	// if (header.FIN)
+	// 	cerr << " FIN";
+	// if (isDuplicate)
+	// 	cerr << " DUP";
+	// cerr << endl;
 }
