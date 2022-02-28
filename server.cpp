@@ -189,9 +189,9 @@ int main(int argc, char* argv[])
 		cout << "Payloadlength: " << to_string(payloadLength)<<endl;
 
 		// flag bits
-		header.ACK = (buffer[10] & 4) != 0;
-		header.SYN = (buffer[10] & 2) != 0;
-		header.FIN = (buffer[10] & 1) != 0;
+		header.ACK = (buffer[11] & 4) != 0;
+		header.SYN = (buffer[11] & 2) != 0;
+		header.FIN = (buffer[11] & 1) != 0;
 		if(debug)
 			cout << "get line 197" << endl;
 		// construct and modify client controller of each connection

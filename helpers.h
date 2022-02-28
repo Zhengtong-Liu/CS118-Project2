@@ -4,6 +4,7 @@
 #include <time.h>
 #include <set>
 #include <unordered_map>
+#include <bitset>
 
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
@@ -159,30 +160,39 @@ int safeportSTOI(string stringnumber) {
 int getIntFromCharArr (char * arr, int size) {
 	int magnitude = 1;
 	int num = 0;
+
+	char reverse[size] = {0};
+	for (int k = 0; k < size; k++) {
+		reverse[k] = arr[size-k-1];
+	}
+
 	for (int i = 0; i < int(size); i++) {
 		for (int j = 0; j < 8; j++) {
-			if ((*(arr + i) & (1 << j)) != 0)
+			if ((*(reverse + i) & (1 << j)) != 0)
 				num += magnitude;
 			magnitude *= 2;
 		}
-
 	}
-	
 	return num;
 }
 
 // convert int to char array
 // e.g.: 4 -> 00000010 
 void setCharArrFromInt(int num, char * arr, int n_bytes) {
-	for (int i = 0; i < n_bytes; i++) 
-		*(arr + i) = 0;
+
+	char reverse[n_bytes] = {0};
+
 	int magnitude = 0;
 	while (num != 0) {
 		if (num % 2 == 1) {
-			*(arr + (magnitude / 8)) |= (1 << (magnitude % 8));
+			*(reverse + (magnitude / 8)) |= (1 << (magnitude % 8));
 		}
 		num /= 2;
 		magnitude ++;
+	}
+
+	for (int k = 0; k < n_bytes; k++) {
+		arr[k] = reverse[n_bytes-k-1];
 	}
 }
 
@@ -193,7 +203,7 @@ void ConstructMessage(Header header, char * payload, char * buffer, int payloadS
 	setCharArrFromInt(header.connectionID, buffer + 8, 2);
 	char flagBit = 0;
 	flagBit |= (header.ACK << 2 | header.SYN << 1 | header.FIN);
-	buffer[10] = flagBit;
+	buffer[11] = flagBit;
 	if (payload)
 		memcpy(buffer + HEADER_SIZE, payload, payloadSize);
 }
@@ -203,9 +213,9 @@ void DeconstructMessage(Header & header, char * buffer) {
     header.sequenceNumber = getIntFromCharArr(buffer, 4);
 	header.ackNumber = getIntFromCharArr(buffer + 4, 4);
 	header.connectionID = getIntFromCharArr(buffer + 8, 2);
-	header.ACK = (buffer[10] & 4) != 0;
-	header.SYN = (buffer[10] & 2) != 0;
-	header.FIN = (buffer[10] & 1) != 0;
+	header.ACK = (buffer[11] & 4) != 0;
+	header.SYN = (buffer[11] & 2) != 0;
+	header.FIN = (buffer[11] & 1) != 0;
 }
 
 // output debug message to std::out
