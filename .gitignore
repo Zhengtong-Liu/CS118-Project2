@@ -5,3 +5,4 @@ server
 client
 /save
 .vscode/settings.json
+grader

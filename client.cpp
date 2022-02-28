@@ -26,7 +26,7 @@ using namespace std;
 int main(int argc, char* argv[])
 {
 	if (argc != 4) {
-		cerr << "Usage: " << argv[0] << " <HOSTNAME-OR-IP> <PORT> <FILENAME> " << endl;
+		cerr << "ERROR: Usage: " << argv[0] << " <HOSTNAME-OR-IP> <PORT> <FILENAME> " << endl;
 		return 1;
 	}
 
@@ -43,10 +43,9 @@ int main(int argc, char* argv[])
 	if (f.is_open()) {
 		strBbuffer << f.rdbuf();
 		file_content = strBbuffer.str();
-		// cout << "file_content: " << file_content;
 		f.close();
 	} else {
-		cerr << "Unable to open file: " << file_path << endl;
+		cerr << "ERROR: Unable to open file: " << file_path << endl;
 		exit(EXIT_FAILURE);
 	}
 	//==========================================ReadFile-END=============================
@@ -79,7 +78,7 @@ int main(int argc, char* argv[])
 		int s;
 		s = getaddrinfo(server_ip.c_str(), argv[2], &hints, &result);
 		if (s != 0) {
-			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+			fprintf(stderr, "ERROR: getaddrinfo: %s\n", gai_strerror(s));
 			exit(EXIT_FAILURE);
 		}
 		for (rp = result; rp != NULL; rp = rp->ai_next) {
@@ -90,7 +89,7 @@ int main(int argc, char* argv[])
 		}
 		freeaddrinfo(result);           /* No longer needed */
 		if (rp == NULL) {               /* No address succeeded */
-			cerr << "Wrong IP address" << endl;
+			cerr << "ERROR: Wrong IP address" << endl;
 			exit(EXIT_FAILURE);
 		}
 	}
