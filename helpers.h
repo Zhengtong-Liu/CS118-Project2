@@ -237,16 +237,16 @@ void outputMessage(Header header, string action, CwndCnotroller * cwnd=NULL, boo
 		cout << " DUP";
 	cout << endl;
 
-	// cerr << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
-	// if (cwnd)  // client, needs to output cwnd and ssthresh
-	// 	cerr << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
-	// if (header.ACK)
-	// 	cerr << " ACK";
-	// if (header.SYN)
-	// 	cerr << " SYN";
-	// if (header.FIN)
-	// 	cerr << " FIN";
-	// if (isDuplicate)
-	// 	cerr << " DUP";
-	// cerr << endl;
+	cerr << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
+	if (cwnd)  // client, needs to output cwnd and ssthresh
+		cerr << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
+	if (header.ACK)
+		cerr << " ACK";
+	if (header.SYN)
+		cerr << " SYN";
+	if (header.FIN)
+		cerr << " FIN";
+	if (isDuplicate)
+		cerr << " DUP";
+	cerr << endl;
 }

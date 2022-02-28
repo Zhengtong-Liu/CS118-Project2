@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
 	ioctl(sock, FIONBIO, (char*)&yes);
 
 	while (1) {
-
+	// ================================ CHECK TIMER =========================================
 		// check whether any one of connections is expired
 		for (auto it : client_controller_map) 
 		{
@@ -131,10 +131,13 @@ int main(int argc, char* argv[])
 					memset(&temp_addr, 0, sizeof(temp_addr));
 					temp_addr = it.second -> client_addr_info;
 					socklen_t temp_sock_len = sizeof(temp_addr);
-					if (debug)
-					{
-						cout << "This is a retransmitted packet" << endl;
-					}
+
+					cerr << "This is a retransmitted packet due to ";
+					if (it.second -> sentSYN && (!(it.second -> recvSYNACK)))
+						cerr << "sent SYN but not received SYNACK" << endl;
+					else
+						cerr << "sent FIN but not received FINACK" << endl;
+
 					// retransmit the header
 					if ( (sendto(sock, retransmit_header, sizeof(retransmit_header), 0, (sockaddr *)&temp_addr, temp_sock_len)) < 0)
 					{
@@ -152,19 +155,15 @@ int main(int argc, char* argv[])
 			// retrieve the shut down timer, remove from client controller map if time out
 			time_t prev_shut_down_t = (it -> second) -> shut_down_timer;
 			if ((time(0) - prev_shut_down_t) >= 10) {
-				if(debug)
-					cout << "reach line 165" << endl;
 				delete it->second;
 				it->second = NULL;
-				if(debug)
-					cout << "reach line 169" << endl;
 				cout << "LOG: connection ID " << (it -> first) << " expires" << endl;
 				it = client_controller_map.erase(it);
 			}
 			else 
 				it ++;
 		}
-
+	// ================================ RECV FILE =========================================
 		sock_len = sizeof(client_addr);
 		memset(buffer, 0, sizeof(buffer));
 		n = recvfrom(sock, (char *) buffer, BUFFER_SIZE, 0, (sockaddr *)&client_addr, &sock_len);
@@ -178,7 +177,8 @@ int main(int argc, char* argv[])
 			memset(buffer, 0, sizeof(buffer));
 			continue;
 		}
-		// cerr << "actual buffer length is " << n << endl;
+
+	// ================================ EXTRACT HEADER =========================================
 		// Extract header and payload
 		// header
 		Header header = {0, 0, 0, 0, 0, 0};
@@ -186,95 +186,74 @@ int main(int argc, char* argv[])
 
 		DeconstructMessage(header, buffer);
 		outputMessage(header, "RECV");
-		int payloadLength = (header.SYN || header.FIN) ? 0 : (n - HEADER_SIZE); // [NOT SURE] whether payload is terminated with '/0'
-		// cerr << "Payloadlength: " << to_string(payloadLength)<<endl;
-		if (payloadLength < 0) {
-			outputMessage(header, "DROP");
-		}
-		// flag bits
-		header.ACK = (buffer[11] & 4) != 0;
-		header.SYN = (buffer[11] & 2) != 0;
-		header.FIN = (buffer[11] & 1) != 0;
-		if(debug)
-			cout << "get line 197" << endl;
-		// construct and modify client controller of each connection
-		if (header.SYN) {
-			client_controller_map[connectionCount + 1] = new ServerConnectionController(connectionCount+1, header.sequenceNumber+1, INITIAL_SEQ+1);
-		} 
-		else {
-			// if this is not a SYN packet but cannot find connection ID of this packet in the map, drop packet
-			if (client_controller_map.find(header.connectionID) == client_controller_map.end()) {
-				outputMessage(header, "DROP");
-				continue;
-			} 
-			else {
-				if(debug)
-					cout << "Get line 210" << endl;
-				// check ACK
-				if (header.ACK) {
-					
-					int offset = (previous_header_map[header.connectionID].FIN || previous_header_map[header.connectionID].SYN) ? 1 : 0;
-					if (header.ackNumber != client_controller_map[header.connectionID] -> lastSentSeqNum + offset)
-					{
-						// if (debug)
-						// {
-						// 	cout << "current last sent seq num " << client_controller_map[header.connectionID] -> lastSentSeqNum + offset << endl;
-						// 	cout << "header.ackNumber: " << header.ackNumber << endl;
-						// 	cout << "Drop due to ack != last seq num" << endl;
-						// }
 
-						outputMessage(header, "DROP");
-						continue;
-					}	
-				}
-				else if (!header.FIN) {
-					// if the rwnd > 51200 bytes, drop the packet
-					int current_base = client_controller_map[header.connectionID] -> expectedSeqNum;
-					if ((header.sequenceNumber - current_base) > RWND)
-					{
-						// if(debug)
-						// 	cout << "Drop due to rwnd > 51200" << endl;
-						outputMessage(header, "DROP");
-						continue;
-					}
-					// out of order means the incoming packet has seq # > current expected seq #
-					if (client_controller_map[header.connectionID] -> expectedSeqNum < header.sequenceNumber) {
-						cout << "LOG: out of order packet" << endl;
-						if(debug)
-							cout<<"Expecting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " get: " << to_string(header.sequenceNumber);
-					} 
-					else {
-						if(debug)
-							cout<<"Setting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " to: " <<to_string(header.sequenceNumber) << " + " << to_string(payloadLength)<<endl;
-						// client_controller_map[header.connectionID] -> expectedSeqNum = header.sequenceNumber + payloadLength;
-						// cerr <<"Setting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " to: " <<to_string(header.sequenceNumber) << " + " << to_string(payloadLength)<<endl;
-					}
-				}
-				// update this client controller's information
-				client_controller_map[header.connectionID] -> shut_down_timer = time(0);
-			}
-		}
-		// if(debug)
-		// 	cout << "get line 243" << endl;
-		// ack number determined after determine the last in-order byte 
-		bool set_ack_number = false;
-		// if (debug)
-		// {
-		// 	cout << "current SYN is " << header.SYN << endl;
-		// 	cout << "current FIN is " << header.FIN << endl;
-		// 	cout << "current ACK is " << header.ACK << endl;
-		// 	cout << "previous_header_map[header.connectionID].SYN is " << previous_header_map[header.connectionID].SYN << endl;
-		// }
-		// Receive SYN, establish connection
+		// flag bits
+		// header.ACK = (buffer[11] & 4) != 0;
+		// header.SYN = (buffer[11] & 2) != 0;
+		// header.FIN = (buffer[11] & 1) != 0;
+
+	// ================================ CHECK VALIDITY OF PACKET =========================================
+		// construct and modify client controller of each connection
 		if (header.SYN) {
 			connectionCount ++;
 			header.connectionID = connectionCount;
+			client_controller_map[header.connectionID] = new ServerConnectionController(header.connectionID, header.sequenceNumber, INITIAL_SEQ+1);
+		}
+		// reset shutdown timer
+		else {
+			client_controller_map[header.connectionID] -> shut_down_timer = time(0);
+		}
+		
+		// payload length is 0 for SYN and FIN packet
+		int payloadLength = (header.SYN || header.FIN) ? 0 : (n - HEADER_SIZE);
+		// if payload length is negative, drop the packet
+		if (payloadLength < 0) {
+			cerr << "Payload length is negative with payload length: " << payloadLength << endl;
+			outputMessage(header, "DROP");
+			continue;
+		}
+		// if not SYN and cannot find connection ID of this packet in the map, drop packet
+		if ((!header.SYN) && (client_controller_map.find(header.connectionID) == client_controller_map.end())) {
+			cerr << "Cannot find connection ID: " << header.connectionID << endl;
+			outputMessage(header, "DROP");
+			continue;
+		}
+		// if this is ACK, check the ack number
+		if (header.ACK)
+		{
+			int offset = (previous_header_map[header.connectionID].FIN || previous_header_map[header.connectionID].SYN) ? 1 : 0;
+			if (header.ackNumber != client_controller_map[header.connectionID] -> lastSentSeqNum + offset) {
+				cerr << "ACK # error, expect: " << client_controller_map[header.connectionID] -> lastSentSeqNum + offset << " get: " << header.ackNumber << endl;
+				outputMessage(header, "DROP");
+				continue;
+			}
+		}
+		// if the packet received exceed rwnd, drop the packet
+		if ((!header.SYN) && (header.sequenceNumber - (client_controller_map[header.connectionID] -> expectedSeqNum)) > RWND)
+		{
+			cerr << "Sequence #" << header.sequenceNumber << " out of range" << endl;
+			outputMessage(header, "DROP");
+			continue;
+		}
+
+		// out of order means the incoming packet has seq # > current expected seq #
+		if (client_controller_map[header.connectionID] -> expectedSeqNum < header.sequenceNumber) {
+			cerr << "LOG: out of order packet" << endl;
+			cerr << "Expecting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " get: " << to_string(header.sequenceNumber) << endl;
+		}
+
+		// ================================ SET OUTPUT MESSAGE and STORE INFORMATION =========================================
+
+		// Receive SYN, establish connection
+		if (header.SYN) {
 			header.ackNumber = header.sequenceNumber + 1;
 			header.sequenceNumber  = INITIAL_SEQ;
 			header.ACK = 1;
 			header.SYN = 1;
 
 			// store the client_addr info and syn packet related info
+			client_controller_map[header.connectionID] -> expectedSeqNum = header.ackNumber; // this is now the ACK to be sent
+
 			sockaddr_in current_client_addr = client_addr;
 			client_controller_map[header.connectionID] -> client_addr_info = current_client_addr;
 			
@@ -283,39 +262,31 @@ int main(int argc, char* argv[])
 			client_controller_map[header.connectionID] -> SYN_header = header;
 			
 		}
-		// SYN ACK
-		// else if (previous_header_map[header.connectionID].SYN && header.ACK) {
-		// 	previous_header_map[header.connectionID].SYN = 0;
-		// 	previous_header_map[header.connectionID].ACK = 0;
-		// 	continue;
-		// }
 		// FIN
 		else if (header.FIN) {
-			// if(debug)
-			// 	cout << "Get in line 278" << endl;
+
 			header.ackNumber = header.sequenceNumber + 1;
-			// [NOT SURE] For FIN ACK, set seq # to previous seq #
 			header.sequenceNumber = previous_header_map[connectionCount].sequenceNumber;
 			header.ACK = 1;
 			header.FIN = 0;
+
 			// in the case of FIN, needs to send additional FIN packet
 			fin_header = header;
-
 			fin_header.ackNumber = 0;
 			fin_header.ACK = 0;
 			fin_header.FIN = 1;
 
 			// store fin related info
+			client_controller_map[header.connectionID] -> expectedSeqNum = header.ackNumber; // this is now the ACK to be sent
+
 			client_controller_map[header.connectionID] -> sentFIN = true;
 			client_controller_map[header.connectionID] -> retransmission_timer = time(0);
 			client_controller_map[header.connectionID] -> FIN_header = fin_header;
 
 		} 
-		// receives ACK, do nothing
+		// receives ACK (not SYN ACK), no need to send message back
 		else if (header.ACK && (!previous_header_map[header.connectionID].SYN))
 		{
-			// if(debug)
-			// 	cout <<"Get in line 301" << endl;
 			if (previous_header_map[header.connectionID].FIN) {
 				{
 					client_controller_map[header.connectionID] -> recvFINACK = true;
@@ -324,73 +295,63 @@ int main(int argc, char* argv[])
 					previous_header_map[header.connectionID].ACK = 0;
 
 				}
-			} else
-				continue;
+			}
+			continue;
 		}
 		// Normal case, receives packet with payload
 		else {
-
 			char* payload = new char[payloadLength+1];
 			memset(payload, 0, payloadLength+1);
-			strcpy(payload, buffer + HEADER_SIZE);
+			memcpy(payload, buffer + HEADER_SIZE, payloadLength);
 
+			// store file into payload map
 			if (payloadLength > 0) {
 				(client_controller_map[header.connectionID] -> payload_map)[header.sequenceNumber] = payload;
 				(client_controller_map[header.connectionID] -> payload_length_map)[header.sequenceNumber] = payloadLength;
 			}
 
-
-			int clientAckNumber = header.ackNumber;
-			// if out of order, send dup ACK
-			// if (out_of_order)
-			// 	header.ackNumber = client_controller_map[header.connectionID] -> expectedSeqNum;
-			set_ack_number = true;
-
+			// SYN ACK
 			if (previous_header_map[header.connectionID].SYN && header.ACK) {
 				client_controller_map[header.connectionID] -> recvSYNACK = true;
-
+				// prevent looping
 				previous_header_map[header.connectionID].SYN = 0;
 				previous_header_map[header.connectionID].ACK = 0;
-				header.sequenceNumber = clientAckNumber;
+				header.sequenceNumber = header.ackNumber;
 			} else {
+				// for other cases, ack from client is 0; need to set server's sequence number from previous header
 				header.sequenceNumber = previous_header_map[header.connectionID].sequenceNumber;
 			}
 			header.ACK = 1;
 
-		}
+			// ================================ WRITE TO FILE and SET CUMMULATIVE ACK =========================================
+			// append payload to specified file
+			string file_path (dir);
+			file_path += "/" + to_string(connectionCount) + ".file";
 
-		// append payload to specified file
-		string file_path (dir);
-		file_path += "/" + to_string(connectionCount) + ".file";
+			fstream f;
+			f.open(file_path, ios_base::app | ios::binary); // append to file if exist
+			int base = client_controller_map[header.connectionID] -> expectedSeqNum;
+			// find if there is a packet with sequence number starting from the expected seq number;
+			// if so, write to file and update: expected sequence number += payload size of this packet
+			while ((client_controller_map[header.connectionID] -> payload_map).find(base) != (client_controller_map[header.connectionID] -> payload_map).end())
+			{
+				char* current_payload = (client_controller_map[header.connectionID] -> payload_map)[base];
 
-		fstream f;
-		f.open(file_path, ios_base::app | ios::binary); // append to file if exist
-		int base = client_controller_map[header.connectionID] -> expectedSeqNum;
-		// find if there is a packet with sequence number starting from the expected seq number;
-		// if so, write to file and update: expected sequence number += payload size of this packet
-		while ((client_controller_map[header.connectionID] -> payload_map).find(base) != (client_controller_map[header.connectionID] -> payload_map).end())
-		{
-			char* current_payload = (client_controller_map[header.connectionID] -> payload_map)[base];
+				int current_payload_length = (client_controller_map[header.connectionID] -> payload_length_map)[base];
+				f.write(current_payload, current_payload_length);
+				base += current_payload_length;
+			}
+			// cerr << "current base is " << base << endl;
+			client_controller_map[header.connectionID] -> expectedSeqNum = base;
 
-			// if (debug)
-			// {
-			// 	cout << "current expected seq num is " << base << endl;
-			// 	printf("current payload is %s\n", (client_controller_map[header.connectionID] -> payload_map)[base]);
-			// }
-			int current_payload_length = (client_controller_map[header.connectionID] -> payload_length_map)[base];
-			f.write(current_payload, current_payload_length);
-			base += current_payload_length;
-		}
-		// cerr << "current base is " << base << endl;
-		client_controller_map[header.connectionID] -> expectedSeqNum = base;
+			f.close();
 
-		f.close();
-
-		// after we traverse the payload map and get the last in-order byte number, we can set the ack number
-		if (set_ack_number)
+			// after we traverse the payload map and get the last in-order byte number, we can set the ack number
 			header.ackNumber = client_controller_map[header.connectionID] -> expectedSeqNum;
 
+		}
 
+		// ================================ RETURN MESSAGE =========================================
 		// construct and send return message
 		char out_msg [HEADER_SIZE];
 		memset(out_msg, 0, sizeof(out_msg));
