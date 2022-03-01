@@ -303,6 +303,7 @@ int main(int argc, char* argv[])
 					payloadSizeToBeSent = 0;
 					payloadSizeCapacity = 0;
 				}
+				else if (payloadSizeCapacity < 512) break;
 				// determine the current packet size
 				else if (payloadSizeCapacity > MAX_PAYLOAD_SIZE) {
 					if (payloadSizeTotal - payloadSizeSent > MAX_PAYLOAD_SIZE) {
