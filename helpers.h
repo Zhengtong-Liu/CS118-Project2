@@ -91,7 +91,7 @@ class CwndCnotroller {
 				if((cum_ack + cwnd_size) < 102401)
 					return wantToSent < (cum_ack + cwnd_size);
 				else
-					return (wantToSent < 102401)
+					return (wantToSent < 102401);
 			}
 			else
 			{
