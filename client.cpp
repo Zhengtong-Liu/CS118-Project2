@@ -19,8 +19,6 @@
 
 #include "helpers.h"
 
-#define BUFFER_SIZE 1024
-
 using namespace std;
 
 int main(int argc, char* argv[])
@@ -114,7 +112,7 @@ int main(int argc, char* argv[])
 	int lastAckNumber = 0; // last Acked number from server
 	int payloadSizeTotal = file_content.length(); // total size of payload
 	int payloadSizeSent = 0; // size of payload sent
-	int payloadSizeAcked = 0; // size of payload acked by server
+	int payloadSizeAcked = -1; // size of payload acked by server (initial -1 to avoid counting SYN)
 	int payloadSizeCapacity = 0; // max capacity of cwnd for packet to be sent in this round
 	int payloadSizeToBeSent = 0; // payload packet to be sent in this round
 
@@ -183,8 +181,9 @@ int main(int argc, char* argv[])
 				cwnd ->	timeout();
 				// retransmit last unacked packet
 				char retransmitBuffer [MAX_PAYLOAD_SIZE] = {0};
-				bufferController -> getBuffer(lastAckNumber, retransmitBuffer, curHeader);
-				if ( (ret = send(sock, retransmitBuffer, sizeof(retransmitBuffer), 0)) < 0 ) {
+				int retransMissionBufferSize = 0;
+				bufferController -> getBuffer(lastAckNumber, retransmitBuffer, curHeader, retransMissionBufferSize);
+				if ( (ret = send(sock, retransmitBuffer, retransMissionBufferSize, 0)) < 0 ) {
 					perror("send");
 					delete cwnd;
 					delete bufferController;
@@ -206,11 +205,6 @@ int main(int argc, char* argv[])
 		}
 		// deconstruct message header to curHeader 
 		DeconstructMessage(curHeader, msgBuffer);
-		// packet is in order, update cwnd and cumack
-		if (!(curHeader.SYN || curHeader.FIN)) {
-			cwnd -> recvACK();
-			cwnd -> update_cumack(curHeader.ackNumber);
-		}
 		// print to std::out
 		outputMessage(curHeader, "RECV", cwnd);
 		// wrong ack number or duplicate ack
@@ -226,7 +220,12 @@ int main(int argc, char* argv[])
 				payloadSizeAcked += MAX_ACK;
 			lastAckNumber = curHeader.ackNumber;
 		}
-		cout << payloadSizeAcked << " " << expectedAckNumber << " " << lastAckNumber << endl;
+		// packet is in order, update cwnd and cumack
+		if (!(curHeader.SYN || curHeader.FIN)) {
+			cwnd -> recvACK();
+			cwnd -> update_cumack(curHeader.ackNumber);
+		}
+		// cout << payloadSizeAcked << " " << expectedAckNumber << " " << lastAckNumber << endl;
 
 		retransmission_timer = time(0);
 		// All data sent, start FIN
@@ -276,17 +275,27 @@ int main(int argc, char* argv[])
 			}
 		}
 
+		else if (curHeader.FIN) {
+			sendMessage = true;
+			curHeader.ACK = 1;
+			curHeader.SYN = 0;
+			curHeader.FIN = 0;
+			curHeader.ackNumber = curHeader.sequenceNumber + 1;
+			curHeader.sequenceNumber = prevHeader.sequenceNumber + 1;
+			// pseudo payload capacity to facilitate packet sending process
+			payloadSizeCapacity = -1;
+		}
+
 		// The rest case, send subsequent packet
 		else if (payloadSizeSent < payloadSizeTotal){
 			sendMessage = true;
 			curHeader.ACK = 0;
 			curHeader.SYN = 0;
 			curHeader.FIN = 0;
-			curHeader.ackNumber = curHeader.sequenceNumber;
+			curHeader.ackNumber = 0;
 			curHeader.sequenceNumber = expectedAckNumber;	
-			payloadSizeCapacity = cwnd->get_cwnd_size() - (payloadSizeSent - payloadSizeAcked);
+			payloadSizeCapacity = max(0, cwnd->get_cwnd_size() - (payloadSizeSent - payloadSizeAcked));
 		}
-
 		if (sendMessage) {
 			// construct the payload size of the current packet
 			while (payloadSizeCapacity != 0) {
@@ -330,7 +339,7 @@ int main(int argc, char* argv[])
 				// update expected ack number by payload size
 				expectedAckNumber = (expectedAckNumber + payloadSizeToBeSent) % MAX_ACK;
 				// store packet in buffer
-				bufferController -> insertNewBuffer(curHeader.sequenceNumber, payload, curHeader);
+				bufferController -> insertNewBuffer(curHeader.sequenceNumber, curHeader, msgBuffer, HEADER_SIZE + payloadSizeToBeSent);
 				// Assign curHeader to prevHeader
 				prevHeader = curHeader;
 				// update sequence number
