@@ -5,9 +5,11 @@
 #include <set>
 #include <unordered_map>
 #include <bitset>
+#include <utility>
 
 #define HEADER_SIZE 12
 #define MAX_PAYLOAD_SIZE 512
+#define BUFFER_SIZE 1024
 #define MAX_ACK 102401
 #define RWND 51200
 
@@ -26,33 +28,27 @@ struct Header {
 
 class ClientBufferController
 {
-	unordered_map<int, char *> packetBuffer;
+	unordered_map<int, pair <char *, int>> packetBuffer;
 	unordered_map<int, Header> headerBuffer;
 
 	public:
-<<<<<<< HEAD
-		ClientBufferController () {
-			for (int i = 0; i < MAX_ACK; i++) {
-				packetBuffer[i] = new char[HEADER_SIZE + MAX_PAYLOAD_SIZE];
-			}
-		}
-		void insertNewBuffer(int seqNumber, char * buffer, Header header) {
-			memset(packetBuffer[seqNumber], 0, HEADER_SIZE + MAX_PAYLOAD_SIZE);
-			strncpy(packetBuffer[seqNumber], buffer, HEADER_SIZE + MAX_PAYLOAD_SIZE);
-			headerBuffer[seqNumber] = header;
-=======
-		void insertNewBuffer(int newSeq, char * buffer, Header header) {
-			packetBuffer[newSeq] = buffer;
+		void insertNewBuffer(int newSeq, Header header, char * buffer, int bufferSize) {
+			char * newBuf = new char[bufferSize];
+			memcpy(newBuf, buffer, bufferSize);
+			pair <char *, int> newPair;
+			newPair.first = newBuf;
+			newPair.second = bufferSize; 
+			packetBuffer[newSeq] = newPair;
 			headerBuffer[newSeq] = header;
 			if(debug)
 				cout << "Debug msg: Insert with Seq:" <<  newSeq << " Header content " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID << endl;
->>>>>>> b02e6503585f0cbf4a70203066788bd5fc1c37b3
 		}
 
-		void getBuffer(int seqNumber, char * buffer, Header & header)
+		void getBuffer(int seqNumber, char * buffer, Header & header, int & bufferSize)
 		{
 			if (packetBuffer.find(seqNumber) != packetBuffer.end()) {
-				buffer = packetBuffer[seqNumber];
+				bufferSize = packetBuffer[seqNumber].second;
+				memcpy(buffer, packetBuffer[seqNumber].first, bufferSize);
 				header = headerBuffer[seqNumber];
 				if(debug)
 					cout  << "Debug msg: Find with Seq:" <<  seqNumber << " Header content " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID << endl;
@@ -269,16 +265,16 @@ void outputMessage(Header header, string action, CwndCnotroller * cwnd=NULL, boo
 		cout << " DUP";
 	cout << endl;
 
-	cerr << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
-	if (cwnd)  // client, needs to output cwnd and ssthresh
-		cerr << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
-	if (header.ACK)
-		cerr << " ACK";
-	if (header.SYN)
-		cerr << " SYN";
-	if (header.FIN)
-		cerr << " FIN";
-	if (isDuplicate)
-		cerr << " DUP";
-	cerr << endl;
+	// cerr << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
+	// if (cwnd)  // client, needs to output cwnd and ssthresh
+	// 	cerr << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
+	// if (header.ACK)
+	// 	cerr << " ACK";
+	// if (header.SYN)
+	// 	cerr << " SYN";
+	// if (header.FIN)
+	// 	cerr << " FIN";
+	// if (isDuplicate)
+	// 	cerr << " DUP";
+	// cerr << endl;
 }
