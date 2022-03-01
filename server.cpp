@@ -117,6 +117,7 @@ int main(int argc, char* argv[])
 			if ((it.second -> sentSYN && (!(it.second -> recvSYNACK))) || (it.second -> sentFIN && (!(it.second -> recvFINACK)))) {
 				if ((time(0) - retransmission_t) >= 0.5) {
 					// get header to be retransmitted
+					(it.second -> cwnd) -> timeout();
 					Header temp_header;
 					if (it.second -> sentSYN && (!(it.second -> recvSYNACK)))
 						temp_header = it.second -> SYN_header;
@@ -187,11 +188,6 @@ int main(int argc, char* argv[])
 		DeconstructMessage(header, buffer);
 		outputMessage(header, "RECV");
 
-		// flag bits
-		// header.ACK = (buffer[11] & 4) != 0;
-		// header.SYN = (buffer[11] & 2) != 0;
-		// header.FIN = (buffer[11] & 1) != 0;
-
 	// ================================ CHECK VALIDITY OF PACKET =========================================
 		// construct and modify client controller of each connection
 		if (header.SYN) {
@@ -211,6 +207,9 @@ int main(int argc, char* argv[])
 			cerr << "Payload length is negative with payload length: " << payloadLength << endl;
 			outputMessage(header, "DROP");
 			continue;
+		} else if (client_controller_map[header.connectionID] -> expectedSeqNum + payloadLength >= MAX_ACK)
+		{
+
 		}
 		// if not SYN and cannot find connection ID of this packet in the map, drop packet
 		if ((!header.SYN) && (client_controller_map.find(header.connectionID) == client_controller_map.end())) {
@@ -227,6 +226,9 @@ int main(int argc, char* argv[])
 				outputMessage(header, "DROP");
 				continue;
 			}
+
+			(client_controller_map[header.connectionID] -> cwnd) -> recvACK();
+			(client_controller_map[header.connectionID] -> cwnd) -> update_cumack(header.ackNumber);
 		}
 		// if the packet received exceed rwnd, drop the packet
 		if ((!header.SYN) && (header.sequenceNumber - (client_controller_map[header.connectionID] -> expectedSeqNum)) > RWND)
@@ -241,6 +243,11 @@ int main(int argc, char* argv[])
 			cerr << "LOG: out of order packet" << endl;
 			cerr << "Expecting: " << to_string(client_controller_map[header.connectionID] -> expectedSeqNum) << " get: " << to_string(header.sequenceNumber) << endl;
 		}
+
+		/* Header changes:
+			ABOVE this line, header refers to header receives from client (except connectionID); 
+			BELOW this line, gradually convert to header to be sent to client 
+		*/
 
 		// ================================ SET OUTPUT MESSAGE and STORE INFORMATION =========================================
 
@@ -295,6 +302,10 @@ int main(int argc, char* argv[])
 					previous_header_map[header.connectionID].ACK = 0;
 
 				}
+				cout << "Connection " << header.connectionID << " turned down" << endl;
+				delete client_controller_map[header.connectionID];
+				client_controller_map[header.connectionID] = NULL;
+				client_controller_map.erase(header.connectionID);
 			}
 			continue;
 		}
@@ -340,6 +351,9 @@ int main(int argc, char* argv[])
 				int current_payload_length = (client_controller_map[header.connectionID] -> payload_length_map)[base];
 				f.write(current_payload, current_payload_length);
 				base += current_payload_length;
+
+				if (base >= MAX_ACK)
+					base = base % MAX_ACK;
 			}
 			// cerr << "current base is " << base << endl;
 			client_controller_map[header.connectionID] -> expectedSeqNum = base;

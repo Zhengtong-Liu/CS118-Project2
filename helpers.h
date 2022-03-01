@@ -113,6 +113,8 @@ class ServerConnectionController {
 
 		sockaddr_in client_addr_info;
 
+		CwndCnotroller* cwnd;
+
 		ServerConnectionController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
 			shut_down_timer = time(0);
 			sentSYN = false;
@@ -121,6 +123,7 @@ class ServerConnectionController {
 			recvFINACK = false;
 			SYN_header = {0, 0, 0, 0, 0, 0};
 			FIN_header = {0, 0, 0, 0, 0, 0};
+			cwnd = new CwndCnotroller(4321);
 		}
 		~ServerConnectionController() {
 			for (auto it: payload_map) {
@@ -129,6 +132,7 @@ class ServerConnectionController {
 					it.second = NULL;
 				}
 			}
+			delete cwnd;
 		}
 };
 
