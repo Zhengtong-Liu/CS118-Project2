@@ -138,6 +138,14 @@ int main(int argc, char* argv[])
 						cerr << "sent SYN but not received SYNACK" << endl;
 					else
 						cerr << "sent FIN but not received FINACK" << endl;
+					
+					// TO BE CHANGED
+					int cwnd_size = (it.second -> cwnd) -> get_cwnd_size();
+					if (cwnd_size <= 1)
+					{
+						cerr << "cannot resend SYN/FIN at this time " << endl;
+						continue;
+					}
 
 					// retransmit the header
 					if ( (sendto(sock, retransmit_header, sizeof(retransmit_header), 0, (sockaddr *)&temp_addr, temp_sock_len)) < 0)
@@ -283,6 +291,14 @@ int main(int argc, char* argv[])
 			fin_header.ACK = 0;
 			fin_header.FIN = 1;
 
+			// TO BE CHANGED
+			int cwnd_size = (client_controller_map[header.connectionID] -> cwnd) -> get_cwnd_size();
+			if (cwnd_size <= 1)
+			{
+				cerr << "cannot send FIN at this time " << endl;
+				continue;
+			}
+			
 			// store fin related info
 			client_controller_map[header.connectionID] -> expectedSeqNum = header.ackNumber; // this is now the ACK to be sent
 
@@ -352,6 +368,7 @@ int main(int argc, char* argv[])
 				f.write(current_payload, current_payload_length);
 				base += current_payload_length;
 
+				//[NOT SURE] Navie way of handling 102400, not sure if correct
 				if (base >= MAX_ACK)
 					base = base % MAX_ACK;
 			}

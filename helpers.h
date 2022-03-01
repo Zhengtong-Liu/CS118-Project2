@@ -33,6 +33,8 @@ class ClientBufferController
 		void insertNewBuffer(int newSeq, char * buffer, Header header) {
 			packetBuffer[newSeq] = buffer;
 			headerBuffer[newSeq] = header;
+			if(debug)
+				cout << "Debug msg: Insert with Seq:" <<  newSeq << " Header content " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID << endl;
 		}
 
 		void getBuffer(int seqNumber, char * buffer, Header & header)
@@ -40,9 +42,13 @@ class ClientBufferController
 			if (packetBuffer.find(seqNumber) != packetBuffer.end()) {
 				buffer = packetBuffer[seqNumber];
 				header = headerBuffer[seqNumber];
+				if(debug)
+					cout  << "Debug msg: Find with Seq:" <<  seqNumber << " Header content " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID << endl;
 			}
 			else {
 				buffer = NULL;
+				if(debug)
+					cout  << "Debug msg: Cannot Find with Seq:" <<  seqNumber << endl;
 			}
 
 		}
@@ -80,14 +86,25 @@ class CwndCnotroller {
 		}
 		bool checkWithinCWND(int wantToSent)
 		{
-			if(wantToSent < MAX_ACK)
+			if(wantToSent > cum_ack)
 			{
-				return (wantToSent > cum_ack) && (wantToSent < (cum_ack + cwnd_size));
+				if((cum_ack + cwnd_size) < 102401)
+					return wantToSent < (cum_ack + cwnd_size);
+				else
+					return (wantToSent < 102401);
 			}
 			else
 			{
-				return (wantToSent > cum_ack) &&  ((wantToSent % MAX_ACK) < ((cum_ack + cwnd_size) % MAX_ACK));
+				return  wantToSent < (cum_ack + cwnd_size) % 102401;
 			}
+			// if(wantToSent < MAX_ACK)
+			// {
+			// 	return (wantToSent > cum_ack) && (wantToSent < (cum_ack + cwnd_size));
+			// }
+			// else
+			// {
+			// 	return (wantToSent > cum_ack) &&  ((wantToSent % MAX_ACK) < ((cum_ack + cwnd_size) % MAX_ACK));
+			// }
 		}
 };
 
