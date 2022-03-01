@@ -30,6 +30,7 @@ class ClientBufferController
 	unordered_map<int, Header> headerBuffer;
 
 	public:
+<<<<<<< HEAD
 		ClientBufferController () {
 			for (int i = 0; i < MAX_ACK; i++) {
 				packetBuffer[i] = new char[HEADER_SIZE + MAX_PAYLOAD_SIZE];
@@ -39,6 +40,13 @@ class ClientBufferController
 			memset(packetBuffer[seqNumber], 0, HEADER_SIZE + MAX_PAYLOAD_SIZE);
 			strncpy(packetBuffer[seqNumber], buffer, HEADER_SIZE + MAX_PAYLOAD_SIZE);
 			headerBuffer[seqNumber] = header;
+=======
+		void insertNewBuffer(int newSeq, char * buffer, Header header) {
+			packetBuffer[newSeq] = buffer;
+			headerBuffer[newSeq] = header;
+			if(debug)
+				cout << "Debug msg: Insert with Seq:" <<  newSeq << " Header content " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID << endl;
+>>>>>>> b02e6503585f0cbf4a70203066788bd5fc1c37b3
 		}
 
 		void getBuffer(int seqNumber, char * buffer, Header & header)
@@ -46,9 +54,13 @@ class ClientBufferController
 			if (packetBuffer.find(seqNumber) != packetBuffer.end()) {
 				buffer = packetBuffer[seqNumber];
 				header = headerBuffer[seqNumber];
+				if(debug)
+					cout  << "Debug msg: Find with Seq:" <<  seqNumber << " Header content " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID << endl;
 			}
 			else {
 				buffer = NULL;
+				if(debug)
+					cout  << "Debug msg: Cannot Find with Seq:" <<  seqNumber << endl;
 			}
 		}
 };
@@ -85,14 +97,25 @@ class CwndCnotroller {
 		}
 		bool checkWithinCWND(int wantToSent)
 		{
-			if(wantToSent < MAX_ACK)
+			if(wantToSent > cum_ack)
 			{
-				return (wantToSent > cum_ack) && (wantToSent < (cum_ack + cwnd_size));
+				if((cum_ack + cwnd_size) < 102401)
+					return wantToSent < (cum_ack + cwnd_size);
+				else
+					return (wantToSent < 102401);
 			}
 			else
 			{
-				return (wantToSent > cum_ack) &&  ((wantToSent % MAX_ACK) < ((cum_ack + cwnd_size) % MAX_ACK));
+				return  wantToSent < (cum_ack + cwnd_size) % 102401;
 			}
+			// if(wantToSent < MAX_ACK)
+			// {
+			// 	return (wantToSent > cum_ack) && (wantToSent < (cum_ack + cwnd_size));
+			// }
+			// else
+			// {
+			// 	return (wantToSent > cum_ack) &&  ((wantToSent % MAX_ACK) < ((cum_ack + cwnd_size) % MAX_ACK));
+			// }
 		}
 };
 
@@ -118,6 +141,8 @@ class ServerConnectionController {
 
 		sockaddr_in client_addr_info;
 
+		CwndCnotroller* cwnd;
+
 		ServerConnectionController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
 			shut_down_timer = time(0);
 			sentSYN = false;
@@ -126,6 +151,7 @@ class ServerConnectionController {
 			recvFINACK = false;
 			SYN_header = {0, 0, 0, 0, 0, 0};
 			FIN_header = {0, 0, 0, 0, 0, 0};
+			cwnd = new CwndCnotroller(4321);
 		}
 		~ServerConnectionController() {
 			for (auto it: payload_map) {
@@ -134,6 +160,7 @@ class ServerConnectionController {
 					it.second = NULL;
 				}
 			}
+			delete cwnd;
 		}
 };
 
@@ -242,16 +269,16 @@ void outputMessage(Header header, string action, CwndCnotroller * cwnd=NULL, boo
 		cout << " DUP";
 	cout << endl;
 
-	// cerr << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
-	// if (cwnd)  // client, needs to output cwnd and ssthresh
-	// 	cerr << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
-	// if (header.ACK)
-	// 	cerr << " ACK";
-	// if (header.SYN)
-	// 	cerr << " SYN";
-	// if (header.FIN)
-	// 	cerr << " FIN";
-	// if (isDuplicate)
-	// 	cerr << " DUP";
-	// cerr << endl;
+	cerr << action << " " << header.sequenceNumber << " " << header.ackNumber << " " << header.connectionID;
+	if (cwnd)  // client, needs to output cwnd and ssthresh
+		cerr << " " << cwnd->get_cwnd_size() << " " << cwnd->get_ssthresh();
+	if (header.ACK)
+		cerr << " ACK";
+	if (header.SYN)
+		cerr << " SYN";
+	if (header.FIN)
+		cerr << " FIN";
+	if (isDuplicate)
+		cerr << " DUP";
+	cerr << endl;
 }
