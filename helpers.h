@@ -65,8 +65,8 @@ class ClientBufferController
 class CwndCnotroller {
 	int cwnd_size; // current cwnd window size
 	int ssthresh; // current ssthresh size
-	int max_cwnd; //max window allowed
-	int cum_ack; //newest cum ack received from server
+	int max_cwnd; // max window allowed
+	int cum_ack; // newest cum ack received from server
 	public:
 		CwndCnotroller(int initial_ack):cwnd_size(512),ssthresh(10000),max_cwnd(51200),cum_ack(initial_ack){}
 		int get_cwnd_size() //return current cwnd size 
@@ -80,7 +80,7 @@ class CwndCnotroller {
 		void recvACK() //recive the ACK
 		{
 			// slow start vs. congestion avoidance
-			cwnd_size = cwnd_size < ssthresh ? min(cwnd_size+512, max_cwnd) : min(cwnd_size+((512*512)/cwnd_size), max_cwnd);
+			cwnd_size = cwnd_size < ssthresh ? min(cwnd_size + 512, max_cwnd) : min(cwnd_size + ((512 * 512) / cwnd_size), max_cwnd);
 		}
 		void timeout() //time out, reset cwnd size
 		{
@@ -90,28 +90,6 @@ class CwndCnotroller {
 		void update_cumack(int new_cumack)
 		{
 			cum_ack = new_cumack % MAX_ACK;
-		}
-		bool checkWithinCWND(int wantToSent)
-		{
-			if(wantToSent > cum_ack)
-			{
-				if((cum_ack + cwnd_size) < 102401)
-					return wantToSent < (cum_ack + cwnd_size);
-				else
-					return (wantToSent < 102401);
-			}
-			else
-			{
-				return  wantToSent < (cum_ack + cwnd_size) % 102401;
-			}
-			// if(wantToSent < MAX_ACK)
-			// {
-			// 	return (wantToSent > cum_ack) && (wantToSent < (cum_ack + cwnd_size));
-			// }
-			// else
-			// {
-			// 	return (wantToSent > cum_ack) &&  ((wantToSent % MAX_ACK) < ((cum_ack + cwnd_size) % MAX_ACK));
-			// }
 		}
 };
 
