@@ -109,20 +109,20 @@ int main(int argc, char* argv[])
 	while (1) {
 	// ================================ CHECK TIMER =========================================
 		// check whether any one of connections is expired
-		for (auto it : client_controller_map) 
+		for (auto it = client_controller_map.begin(); it != client_controller_map.end(); it++) 
 		{
 			// retrieve retransmission timer
-			time_t retransmission_t = it.second -> retransmission_timer;
+			time_t retransmission_t = (it -> second) -> retransmission_timer;
 			// if sent SYN but did not receive SYN ACK, check whether need to retransmit (similar for FIN)
-			if ((it.second -> sentSYN && (!(it.second -> recvSYNACK))) || (it.second -> sentFIN && (!(it.second -> recvFINACK)))) {
+			if (((it -> second) -> sentSYN && (!((it -> second) -> recvSYNACK))) || ((it -> second) -> sentFIN && (!((it -> second) -> recvFINACK)))) {
 				if ((time(0) - retransmission_t) > 0.5) {
 					// get header to be retransmitted
-					(it.second -> cwnd) -> timeout();
+					((it -> second) -> cwnd) -> timeout();
 					Header temp_header;
-					if (it.second -> sentSYN && (!(it.second -> recvSYNACK)))
-						temp_header = it.second -> SYN_header;
+					if ((it -> second) -> sentSYN && (!((it -> second) -> recvSYNACK)))
+						temp_header = (it -> second) -> SYN_header;
 					else
-						temp_header = it.second -> FIN_header;
+						temp_header = (it -> second) -> FIN_header;
 
 					char retransmit_header [HEADER_SIZE];
 					memset(retransmit_header, 0, sizeof(retransmit_header));
@@ -130,17 +130,17 @@ int main(int argc, char* argv[])
 
 					struct sockaddr_in temp_addr;
 					memset(&temp_addr, 0, sizeof(temp_addr));
-					temp_addr = it.second -> client_addr_info;
+					temp_addr = (it -> second) -> client_addr_info;
 					socklen_t temp_sock_len = sizeof(temp_addr);
 
-					// cerr << "This is a retransmitted packet due to ";
-					// if (it.second -> sentSYN && (!(it.second -> recvSYNACK)))
-					// 	cerr << "sent SYN but not received SYNACK" << endl;
-					// else
-					// 	cerr << "sent FIN but not received FINACK" << endl;
+					cerr << "This is a retransmitted packet due to ";
+					if ((it -> second) -> sentSYN && (!((it -> second) -> recvSYNACK)))
+						cerr << "sent SYN but not received SYNACK" << endl;
+					else
+						cerr << "sent FIN but not received FINACK" << endl;
 					
 					// TO BE CHANGED
-					int cwnd_size = (it.second -> cwnd) -> get_cwnd_size();
+					int cwnd_size = ((it -> second) -> cwnd) -> get_cwnd_size();
 					if (cwnd_size <= 1)
 					{
 						cerr << "cannot resend SYN/FIN at this time " << endl;
@@ -153,8 +153,8 @@ int main(int argc, char* argv[])
 						perror("sendto");
 						continue;
 					}
-					outputMessage(temp_header, "SEND");
-					it.second -> retransmission_timer = time(0);
+					outputMessage(temp_header, "SEND", NULL, true);
+					(it -> second) -> retransmission_timer = time(0);
 				}
 			}
 		}
@@ -293,30 +293,36 @@ int main(int argc, char* argv[])
 		else if (header.FIN) {
 
 			header.ackNumber = header.sequenceNumber + 1;
-			header.sequenceNumber = client_controller_map[header.connectionID] -> lastSentSeqNum;
+			if (client_controller_map[header.connectionID] -> sentFIN)
+				header.sequenceNumber = (client_controller_map[header.connectionID] -> FIN_header).sequenceNumber;
+			else
+				header.sequenceNumber = client_controller_map[header.connectionID] -> lastSentSeqNum;
 			header.ACK = 1;
 			header.FIN = 0;
 
 			// in the case of FIN, needs to send additional FIN packet
-			fin_header = header;
-			fin_header.ackNumber = 0;
-			fin_header.ACK = 0;
-			fin_header.FIN = 1;
-
-			// TO BE CHANGED
-			int cwnd_size = (client_controller_map[header.connectionID] -> cwnd) -> get_cwnd_size();
-			if (cwnd_size <= 1)
+			if (!client_controller_map[header.connectionID] -> sentFIN)
 			{
-				cerr << "cannot send FIN at this time " << endl;
-				continue;
-			}
-			
-			// store fin related info
-			client_controller_map[header.connectionID] -> expectedSeqNum = header.ackNumber; // this is now the ACK to be sent
+				fin_header = header;
+				fin_header.ackNumber = 0;
+				fin_header.ACK = 0;
+				fin_header.FIN = 1;
 
-			client_controller_map[header.connectionID] -> sentFIN = true;
-			client_controller_map[header.connectionID] -> retransmission_timer = time(0);
-			client_controller_map[header.connectionID] -> FIN_header = fin_header;
+				// TO BE CHANGED
+				int cwnd_size = (client_controller_map[header.connectionID] -> cwnd) -> get_cwnd_size();
+				if (cwnd_size <= 1)
+				{
+					cerr << "cannot send FIN at this time " << endl;
+					continue;
+				}
+				
+				// store fin related info
+				client_controller_map[header.connectionID] -> expectedSeqNum = header.ackNumber; // this is now the ACK to be sent
+
+				client_controller_map[header.connectionID] -> sentFIN = true;
+				client_controller_map[header.connectionID] -> retransmission_timer = time(0);
+				client_controller_map[header.connectionID] -> FIN_header = fin_header;
+			}
 
 		} 
 		// receives ACK (not SYN ACK), no need to send message back
@@ -325,13 +331,14 @@ int main(int argc, char* argv[])
 			if (client_controller_map[header.connectionID] -> sentFIN) {
 
 				client_controller_map[header.connectionID] -> recvFINACK = true;
-
+				client_controller_map[header.connectionID] -> retransmission_timer = time(0);
 				// previous_header_map[header.connectionID].FIN = 0;
 				// previous_header_map[header.connectionID].ACK = 0;
 
 				// cerr << "Connection " << header.connectionID << " turned down" << endl;
 				if ((client_controller_map.find(header.connectionID) != client_controller_map.end()) && (client_controller_map[header.connectionID]))
 				{
+					cerr << "Connection " << header.connectionID << " turned down" << endl;
 					delete client_controller_map[header.connectionID];
 					client_controller_map[header.connectionID] = NULL;
 					client_controller_map.erase(header.connectionID);
@@ -428,7 +435,7 @@ int main(int argc, char* argv[])
 		// if (fin_header.FIN) previous_header_map[header.connectionID] = fin_header;
 		// else previous_header_map[header.connectionID] = header;
 		if (fin_header.FIN || header.SYN) client_controller_map[header.connectionID] -> lastSentSeqNum = header.sequenceNumber + 1;
-		else client_controller_map[header.connectionID] -> lastSentSeqNum = header.sequenceNumber;
+		// else client_controller_map[header.connectionID] -> lastSentSeqNum = header.sequenceNumber;
 	}
 
 	return 0;
