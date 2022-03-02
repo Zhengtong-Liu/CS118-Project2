@@ -299,10 +299,12 @@ int main(int argc, char* argv[])
 		if (sendMessage) {
 			// construct the payload size of the current packet
 			while (payloadSizeCapacity != 0) {
-				if (payloadSizeCapacity == -1) { // SYN/FIN case, no payload
+				// SYN/FIN case, no payload
+				if (payloadSizeCapacity == -1) { 
 					payloadSizeToBeSent = 0;
 					payloadSizeCapacity = 0;
 				}
+				// wait for a whole 512 byte window to sent packet
 				else if (payloadSizeCapacity < 512) break;
 				// determine the current packet size
 				else if (payloadSizeCapacity > MAX_PAYLOAD_SIZE) {
