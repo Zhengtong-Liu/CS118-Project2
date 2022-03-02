@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <unordered_map>
+#include <vector>
 #include <time.h>
 
 #include "helpers.h"
@@ -101,6 +102,8 @@ int main(int argc, char* argv[])
 
 	// unordered_map<int, Header> previous_header_map;
 	unordered_map<int, ServerConnectionController*> client_controller_map;
+	vector<int> deleted_clientID;
+	
 
 	// non-blocking
 	int yes = 1;
@@ -133,11 +136,11 @@ int main(int argc, char* argv[])
 					temp_addr = (it -> second) -> client_addr_info;
 					socklen_t temp_sock_len = sizeof(temp_addr);
 
-					cerr << "This is a retransmitted packet due to ";
-					if ((it -> second) -> sentSYN && (!((it -> second) -> recvSYNACK)))
-						cerr << "sent SYN but not received SYNACK" << endl;
-					else
-						cerr << "sent FIN but not received FINACK" << endl;
+					// cerr << "This is a retransmitted packet due to ";
+					// if ((it -> second) -> sentSYN && (!((it -> second) -> recvSYNACK)))
+					// 	cerr << "sent SYN but not received SYNACK" << endl;
+					// else
+					// 	cerr << "sent FIN but not received FINACK" << endl;
 					
 					// TO BE CHANGED
 					int cwnd_size = ((it -> second) -> cwnd) -> get_cwnd_size();
@@ -205,6 +208,12 @@ int main(int argc, char* argv[])
 
 		DeconstructMessage(header, buffer);
 
+		if (find(deleted_clientID.begin(), deleted_clientID.end(), header.connectionID) != deleted_clientID.end())
+		{
+			// cerr << "The connectionID has been expired " << endl;
+			outputMessage(header, "DROP");
+			continue;
+		}
 	// ================================ CHECK VALIDITY OF PACKET =========================================
 		// construct and modify client controller of each connection
 		if (header.SYN) {
@@ -328,6 +337,9 @@ int main(int argc, char* argv[])
 		// receives ACK (not SYN ACK), no need to send message back
 		else if (header.ACK && (payloadLength == 0))
 		{
+			if (client_controller_map[header.connectionID] -> sentFIN && client_controller_map[header.connectionID] -> recvFINACK)
+				continue;
+			
 			if (client_controller_map[header.connectionID] -> sentFIN) {
 
 				client_controller_map[header.connectionID] -> recvFINACK = true;
@@ -338,10 +350,12 @@ int main(int argc, char* argv[])
 				// cerr << "Connection " << header.connectionID << " turned down" << endl;
 				if ((client_controller_map.find(header.connectionID) != client_controller_map.end()) && (client_controller_map[header.connectionID]))
 				{
-					cerr << "Connection " << header.connectionID << " turned down" << endl;
+					// cerr << "Connection " << header.connectionID << " turned down" << endl;
 					delete client_controller_map[header.connectionID];
 					client_controller_map[header.connectionID] = NULL;
 					client_controller_map.erase(header.connectionID);
+
+					deleted_clientID.push_back(header.connectionID);
 				}
 			}
 			continue;
@@ -375,10 +389,10 @@ int main(int argc, char* argv[])
 			header.ACK = 1;
 
 			// ================================ WRITE TO FILE and SET CUMMULATIVE ACK =========================================
-			// append payload to specified file
 			string file_path (dir);
-			file_path += "/" + to_string(connectionCount) + ".file";
+			file_path += "/" + to_string(header.connectionID) + ".file";
 
+			// append payload to specified file
 			fstream f;
 			f.open(file_path, ios_base::app | ios::binary); // append to file if exist
 			int base = client_controller_map[header.connectionID] -> expectedSeqNum;
@@ -396,10 +410,14 @@ int main(int argc, char* argv[])
 				if (base >= MAX_ACK)
 					base = base % MAX_ACK;
 			}
-			// cerr << "current base is " << base << endl;
+			// if (base < MAX_ACK) cerr << "current file length of " << file_path << " is " << base - 12346 << endl;
 			client_controller_map[header.connectionID] -> expectedSeqNum = base;
 
 			f.close();
+
+			// ifstream file(file_path, ios::binary | ios::ate);
+			// cerr << "actual file length of " << file_path << " is " << file.tellg() << endl;
+			// file.close();
 
 			// after we traverse the payload map and get the last in-order byte number, we can set the ack number
 			header.ackNumber = client_controller_map[header.connectionID] -> expectedSeqNum;
