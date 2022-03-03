@@ -100,8 +100,8 @@ class ServerConnectionController {
 		int ConnectionID;
 		unordered_map <int, char*> payload_map;
 		unordered_map <int, int> payload_length_map;
-		time_t shut_down_timer;
-		time_t retransmission_timer;
+		clock_t shut_down_timer;
+		clock_t retransmission_timer;
 		int expectedSeqNum;
 		int lastSentSeqNum;
 
@@ -118,7 +118,7 @@ class ServerConnectionController {
 		CwndCnotroller* cwnd;
 
 		ServerConnectionController(int cnID, int expectedSeq, int lastSentSeq) : ConnectionID(cnID), expectedSeqNum(expectedSeq), lastSentSeqNum(lastSentSeq) {
-			shut_down_timer = time(0);
+			shut_down_timer = clock();
 			sentSYN = false;
 			recvSYNACK = false;
 			sentFIN = false;
