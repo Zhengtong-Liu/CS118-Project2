@@ -15,7 +15,7 @@
 #include <netinet/in.h>
 #include <unordered_map>
 #include <vector>
-#include <time.h>
+#include <ctime>
 
 #include "helpers.h"
 
@@ -115,10 +115,10 @@ int main(int argc, char* argv[])
 		for (auto it = client_controller_map.begin(); it != client_controller_map.end(); it++) 
 		{
 			// retrieve retransmission timer
-			time_t retransmission_t = (it -> second) -> retransmission_timer;
+			clock_t retransmission_t = (it -> second) -> retransmission_timer;
 			// if sent SYN but did not receive SYN ACK, check whether need to retransmit (similar for FIN)
 			if (((it -> second) -> sentSYN && (!((it -> second) -> recvSYNACK))) || ((it -> second) -> sentFIN && (!((it -> second) -> recvFINACK)))) {
-				if ((time(0) - retransmission_t) > 0.5) {
+				if ((clock() - retransmission_t) / (double)CLOCKS_PER_SEC > 0.5) {
 					// get header to be retransmitted
 					((it -> second) -> cwnd) -> timeout();
 					Header temp_header;
@@ -157,7 +157,7 @@ int main(int argc, char* argv[])
 						continue;
 					}
 					outputMessage(temp_header, "SEND", NULL, true);
-					(it -> second) -> retransmission_timer = time(0);
+					(it -> second) -> retransmission_timer = clock();
 				}
 			}
 		}
@@ -165,8 +165,8 @@ int main(int argc, char* argv[])
 		for (auto it = client_controller_map.begin(); it != client_controller_map.end();) 
 		{
 			// retrieve the shut down timer, remove from client controller map if time out
-			time_t prev_shut_down_t = (it -> second) -> shut_down_timer;
-			if ((time(0) - prev_shut_down_t) > 10) {
+			clock_t prev_shut_down_t = (it -> second) -> shut_down_timer;
+			if ((clock() - prev_shut_down_t) / (double) CLOCKS_PER_SEC > 10) {
 
 				// abort the connection and write a single ERROR string
 				string file_path (dir);
@@ -226,7 +226,7 @@ int main(int argc, char* argv[])
 		// }
 		// reset shutdown timer
 		else {
-			client_controller_map[header.connectionID] -> shut_down_timer = time(0);
+			client_controller_map[header.connectionID] -> shut_down_timer = clock();
 		}
 		
 		// payload length is 0 for SYN and FIN packet
@@ -294,7 +294,7 @@ int main(int argc, char* argv[])
 			client_controller_map[header.connectionID] -> client_addr_info = current_client_addr;
 			
 			client_controller_map[header.connectionID] -> sentSYN = true;
-			client_controller_map[header.connectionID] -> retransmission_timer = time(0);
+			client_controller_map[header.connectionID] -> retransmission_timer = clock();
 			client_controller_map[header.connectionID] -> SYN_header = header;
 			
 		}
@@ -329,7 +329,7 @@ int main(int argc, char* argv[])
 				client_controller_map[header.connectionID] -> expectedSeqNum = header.ackNumber; // this is now the ACK to be sent
 
 				client_controller_map[header.connectionID] -> sentFIN = true;
-				client_controller_map[header.connectionID] -> retransmission_timer = time(0);
+				client_controller_map[header.connectionID] -> retransmission_timer = clock();
 				client_controller_map[header.connectionID] -> FIN_header = fin_header;
 			}
 
@@ -343,7 +343,7 @@ int main(int argc, char* argv[])
 			if (client_controller_map[header.connectionID] -> sentFIN) {
 
 				client_controller_map[header.connectionID] -> recvFINACK = true;
-				client_controller_map[header.connectionID] -> retransmission_timer = time(0);
+				client_controller_map[header.connectionID] -> retransmission_timer = clock();
 				// previous_header_map[header.connectionID].FIN = 0;
 				// previous_header_map[header.connectionID].ACK = 0;
 

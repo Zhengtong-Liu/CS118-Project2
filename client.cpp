@@ -13,7 +13,7 @@
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <time.h>
+#include <ctime>
 #include <netdb.h>
 
 
@@ -116,9 +116,10 @@ int main(int argc, char* argv[])
 	int payloadSizeCapacity = 0; // max capacity of cwnd for packet to be sent in this round
 	int payloadSizeToBeSent = 0; // payload packet to be sent in this round
 
-	time_t two_seconds_timer = (time_t)(-1); // FIN 2 second timer
-	time_t ten_seconds_timer = (time_t)(-1); // 10 second timer
-	time_t retransmission_timer = (time_t)(-1); // 0.5s retransmission timer
+	clock_t two_seconds_timer = clock(); // FIN 2 second timer
+	clock_t ten_seconds_timer = clock(); // 10 second timer
+	clock_t retransmission_timer = clock(); // 0.5s retransmission timer
+	clock_t start_time = clock(); // clock only works after they are activated after start_time
 
 	bool sendMessage = true; // whether a message should be sent in this round
 	CwndCnotroller * cwnd = new CwndCnotroller(12345); // cwnd controller
@@ -155,8 +156,8 @@ int main(int argc, char* argv[])
 		// non-blocking receive
 		long ret = recv(sock, msgBuffer, BUFFER_SIZE, 0);
 		if (ret == -1 && errno == EWOULDBLOCK) { // no message from server yet
-			if (two_seconds_timer != -1) {
-				if (time(0) - two_seconds_timer >= 2) { // FIN times up, close connection
+			if (two_seconds_timer > start_time) {
+				if ((clock() - two_seconds_timer) / (double) CLOCKS_PER_SEC >= 2) { // FIN times up, close connection
 					if ( close(sock) < 0 ) {
 						perror("close");
 						delete cwnd;
@@ -166,7 +167,7 @@ int main(int argc, char* argv[])
 					break;
 				}
 			}
-			else if (ten_seconds_timer != -1 && time(0) - ten_seconds_timer >= 10) { // 10s times up, close connection
+			else if (ten_seconds_timer > start_time && (clock() - ten_seconds_timer) / (double) CLOCKS_PER_SEC >= 10) { // 10s times up, close connection
 				if ( close(sock) < 0 ) {
 					perror("close");
 					delete cwnd;
@@ -177,7 +178,7 @@ int main(int argc, char* argv[])
 				delete bufferController;
 				exit(ETIMEDOUT);
 			}
-			else if (retransmission_timer != -1 && time(0) - retransmission_timer >= 0.5) { // retransmission timeout
+			else if (retransmission_timer > start_time && (clock() - retransmission_timer) / (double) CLOCKS_PER_SEC >= 0.5) { // retransmission timeout
 				cwnd ->	timeout();
 				// retransmit last unacked packet
 				char retransmitBuffer [MAX_PAYLOAD_SIZE] = {0};
@@ -190,7 +191,7 @@ int main(int argc, char* argv[])
 					exit(EXIT_FAILURE);
 				}
 				outputMessage(curHeader, "SEND", cwnd, true);
-				retransmission_timer = time(0);
+				retransmission_timer = clock();
 			}
 			continue;
 		} 
@@ -201,7 +202,7 @@ int main(int argc, char* argv[])
 			exit(EXIT_FAILURE);
 		}
 		else { // message received, set up 10s timer
-			ten_seconds_timer = time(0);
+			ten_seconds_timer = clock();
 		}
 		// deconstruct message header to curHeader 
 		DeconstructMessage(curHeader, msgBuffer);
@@ -227,7 +228,7 @@ int main(int argc, char* argv[])
 		}
 		// cout << payloadSizeAcked << " " << expectedAckNumber << " " << lastAckNumber << endl;
 
-		retransmission_timer = time(0);
+		retransmission_timer = clock();
 		// All data sent, start FIN
 		if (payloadSizeAcked == payloadSizeTotal) {
 			payloadSizeAcked ++;
@@ -259,8 +260,8 @@ int main(int argc, char* argv[])
 		else if (prevHeader.FIN) {
 			if (curHeader.ACK) {
 				sendMessage = false;
-				if (two_seconds_timer == -1)
-					two_seconds_timer = time(0);
+				if (two_seconds_timer <= start_time)
+					two_seconds_timer = clock();
 			}
 			// in 2 seconds waiting phase and receives FIN, responds with ACK
 			if (curHeader.FIN) {
