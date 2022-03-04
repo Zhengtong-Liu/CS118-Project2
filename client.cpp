@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
 
 	// create socket fd
 	if ( (sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
-		perror("socket");
+		perror("ERROR: socket");
 		exit(EXIT_FAILURE);
 	}
 
@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
 	if(!hostname)
 	{
 		if ( (ret = connect(sock, (sockaddr*)&server_addr, sizeof(server_addr))) < 0 ) {
-			perror("connect");
+			perror("ERROR: connect");
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 	memset(out_msg, 0, sizeof(out_msg));
 	ConstructMessage(curHeader, NULL, out_msg, 0);
 	if ( (ret = send(sock, out_msg, sizeof(out_msg), 0)) < 0 ) {
-		perror("send");
+		perror("ERROR: send");
 		exit(EXIT_FAILURE);
 	}
 	outputMessage(curHeader, "SEND", cwnd);
@@ -159,7 +159,7 @@ int main(int argc, char* argv[])
 			if (two_seconds_timer > start_time) {
 				if ((clock() - two_seconds_timer) / (double) CLOCKS_PER_SEC >= 2) { // FIN times up, close connection
 					if ( close(sock) < 0 ) {
-						perror("close");
+						perror("ERROR: close");
 						delete cwnd;
 						delete bufferController;
 						exit(EXIT_FAILURE);
@@ -169,7 +169,7 @@ int main(int argc, char* argv[])
 			}
 			else if (ten_seconds_timer > start_time && (clock() - ten_seconds_timer) / (double) CLOCKS_PER_SEC >= 10) { // 10s times up, close connection
 				if ( close(sock) < 0 ) {
-					perror("close");
+					perror("ERROR: close");
 					delete cwnd;
 					delete bufferController;
 					exit(EXIT_FAILURE);
@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
 				int retransMissionBufferSize = 0;
 				bufferController -> getBuffer(lastAckNumber, retransmitBuffer, curHeader, retransMissionBufferSize);
 				if ( (ret = send(sock, retransmitBuffer, retransMissionBufferSize, 0)) < 0 ) {
-					perror("send");
+					perror("ERROR: send");
 					delete cwnd;
 					delete bufferController;
 					exit(EXIT_FAILURE);
@@ -196,7 +196,7 @@ int main(int argc, char* argv[])
 			continue;
 		} 
 		else if (ret < 0 ) { // error receiving message from server
-			perror("recv");
+			perror("ERROR: recv");
 			delete cwnd;
 			delete bufferController;
 			exit(EXIT_FAILURE);
@@ -334,7 +334,7 @@ int main(int argc, char* argv[])
 				memset(msgBuffer, 0, BUFFER_SIZE);
 				ConstructMessage(curHeader, payload, msgBuffer, payloadSizeToBeSent);
 				if ( (ret = send(sock, msgBuffer, HEADER_SIZE + payloadSizeToBeSent, 0)) < 0 ) {
-					perror("send");
+					perror("ERROR: send");
 					delete cwnd;
 					delete bufferController;
 					exit(EXIT_FAILURE);

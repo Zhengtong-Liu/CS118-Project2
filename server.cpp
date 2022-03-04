@@ -31,7 +31,7 @@ using namespace std;
 void sig_handler(int sig) {
 	if (sock > 0) {
 		if ( close(sock) < 0 ) {
-			perror("close");
+			perror("ERROR: close");
 			exit(EXIT_FAILURE);
 		}
   	}
@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
 {
 	//==========================================InputProcess=============================
   	if (argc != 3) {
-    	cerr << "Usage: " << argv[0] << " <PORT> <FILE-DIR> "  << endl;
+    	cerr << "ERROR: Usage: " << argv[0] << " <PORT> <FILE-DIR> "  << endl;
     	return 1;
   	}
 
@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
   	// reference: https://www.geeksforgeeks.org/udp-server-client-implementation-c/
   	// create socket fd
   	if ( (sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
-    	perror("socket");
+    	perror("ERROR: socket");
     	exit(EXIT_FAILURE);
   	}
 
@@ -73,7 +73,7 @@ int main(int argc, char* argv[])
 
 	// bind socket
 	if ( ::bind(sock, (sockaddr *)&server_addr, sizeof(server_addr)) < 0 ) {
-		perror("bind");
+		perror("ERROR: Bind");
 		exit(EXIT_FAILURE);
 	}
 
@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
 	if (mkdir(dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
 		if (errno != EEXIST) {
 			// cerr << "directory is " << dir << endl;
-			perror("mkdir");
+			perror("ERROR: mkdir");
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -146,14 +146,14 @@ int main(int argc, char* argv[])
 					int cwnd_size = ((it -> second) -> cwnd) -> get_cwnd_size();
 					if (cwnd_size <= 1)
 					{
-						cerr << "cannot resend SYN/FIN at this time " << endl;
+						cerr << "ERROR: cannot resend SYN/FIN at this time " << endl;
 						continue;
 					}
 
 					// retransmit the header
 					if ( (sendto(sock, retransmit_header, sizeof(retransmit_header), 0, (sockaddr *)&temp_addr, temp_sock_len)) < 0)
 					{
-						perror("sendto");
+						perror("ERROR: sendto");
 						continue;
 					}
 					outputMessage(temp_header, "SEND", NULL, true);
@@ -173,7 +173,8 @@ int main(int argc, char* argv[])
 				file_path += "/" + to_string((it->second) -> ConnectionID) + ".file";
 
 				fstream f;
-				f.open(file_path, ios_base::app | ios::binary); // append to file if exist
+				f.open(file_path, ios_base::out| ios_base::trunc | ios::binary); // Overwrite to file if exist
+				// f.open(file_path, ios_base::app | ios::binary); // append to file if exist
 				if (f.is_open())
 					f << "ERROR";
 
@@ -195,7 +196,7 @@ int main(int argc, char* argv[])
 			memset(buffer, 0, sizeof(buffer));
 			continue;
 		} else if (n < 0) {
-			perror("recvfrom");
+			perror("ERROR: recvfrom");
 			memset(buffer, 0, sizeof(buffer));
 			continue;
 		}
@@ -234,13 +235,13 @@ int main(int argc, char* argv[])
 		int payloadLength = (header.SYN || header.FIN) ? 0 : (n - HEADER_SIZE);
 		// if payload length is negative, drop the packet
 		if (payloadLength < 0) {
-			cerr << "Payload length is negative with payload length: " << payloadLength << endl;
+			cerr << "ERROR: Payload length is negative with payload length: " << payloadLength << endl;
 			outputMessage(header, "DROP");
 			continue;
 		}
 		// if not SYN and cannot find connection ID of this packet in the map, drop packet
 		if ((!header.SYN) && (client_controller_map.find(header.connectionID) == client_controller_map.end())) {
-			cerr << "Cannot find connection ID: " << header.connectionID << endl;
+			cerr << "ERROR: Cannot find connection ID: " << header.connectionID << endl;
 			outputMessage(header, "DROP");
 			continue;
 		}
@@ -249,7 +250,7 @@ int main(int argc, char* argv[])
 		{
 			// int offset = (previous_header_map[header.connectionID].FIN || previous_header_map[header.connectionID].SYN) ? 1 : 0;
 			if (header.ackNumber != client_controller_map[header.connectionID] -> lastSentSeqNum) {
-				cerr << "ACK # error, expect: " << client_controller_map[header.connectionID] -> lastSentSeqNum << " get: " << header.ackNumber << endl;
+				cerr << "ERROR: ACK # error, expect: " << client_controller_map[header.connectionID] -> lastSentSeqNum << " get: " << header.ackNumber << endl;
 				outputMessage(header, "DROP");
 				continue;
 			}
@@ -260,7 +261,7 @@ int main(int argc, char* argv[])
 		// if the packet received exceed rwnd, drop the packet
 		if ((!header.SYN) && (header.sequenceNumber - (client_controller_map[header.connectionID] -> expectedSeqNum)) > RWND)
 		{
-			cerr << "Sequence # " << header.sequenceNumber << " out of range" << endl;
+			cerr << "ERROR: Sequence # " << header.sequenceNumber << " out of range" << endl;
 			outputMessage(header, "DROP");
 			continue;
 		}
@@ -322,7 +323,7 @@ int main(int argc, char* argv[])
 				int cwnd_size = (client_controller_map[header.connectionID] -> cwnd) -> get_cwnd_size();
 				if (cwnd_size <= 1)
 				{
-					cerr << "cannot send FIN at this time " << endl;
+					cerr << "ERROR: cannot send FIN at this time " << endl;
 					continue;
 				}
 				
@@ -399,7 +400,7 @@ int main(int argc, char* argv[])
 			{
 				if(debug)
 					cout << "Overwright!!!!" << endl;
-				f.open(file_path, ios_base::out| ios_base::trunc | ios::binary); // append to file if exist
+				f.open(file_path, ios_base::out| ios_base::trunc | ios::binary); // Overwrite to file if exist
 				client_file_creation[header.connectionID] = true;
 			}
 			else
@@ -440,7 +441,7 @@ int main(int argc, char* argv[])
 		ConstructMessage(header, NULL, out_msg, 0);
 		if ( (sendto(sock, out_msg, sizeof(out_msg), 0, (sockaddr *)&client_addr, sock_len)) < 0)
 		{
-		  	perror("sendto");
+		  	perror("ERROR: sendto");
 		  	continue;
 		}
 		outputMessage(header, "SEND");
@@ -452,7 +453,7 @@ int main(int argc, char* argv[])
 			ConstructMessage(fin_header, NULL, out_msg, 0);
 			if ( (sendto(sock, out_msg, sizeof(out_msg), 0, (sockaddr *)&client_addr, sock_len)) < 0)
 			{
-				perror("sendto");
+				perror("ERROR: sendto");
 				continue;
 			}
 			outputMessage(fin_header, "SEND");
