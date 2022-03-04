@@ -102,13 +102,13 @@ int main(int argc, char* argv[])
 
 	// unordered_map<int, Header> previous_header_map;
 	unordered_map<int, ServerConnectionController*> client_controller_map;
+	unordered_map<int, bool> client_file_creation;
 	vector<int> deleted_clientID;
 	
 
 	// non-blocking
 	int yes = 1;
 	ioctl(sock, FIONBIO, (char*)&yes);
-
 	while (1) {
 	// ================================ CHECK TIMER =========================================
 		// check whether any one of connections is expired
@@ -218,6 +218,7 @@ int main(int argc, char* argv[])
 		// construct and modify client controller of each connection
 		if (header.SYN) {
 			client_controller_map[connectionCount+1] = new ServerConnectionController(connectionCount+1, header.sequenceNumber, INITIAL_SEQ+1);
+			client_file_creation[connectionCount+1] = false;
 		}
 		// the connection to this client is closed
 		// else if (client_controller_map.find(header.connectionID) != client_controller_map.end() && client_controller_map[header.connectionID] -> sentFIN && client_controller_map[header.connectionID] -> recvFINACK)
@@ -394,7 +395,15 @@ int main(int argc, char* argv[])
 
 			// append payload to specified file
 			fstream f;
-			f.open(file_path, ios_base::app | ios::binary); // append to file if exist
+			if(client_file_creation[header.connectionID] == false)
+			{
+				if(debug)
+					cout << "Overwright!!!!" << endl;
+				f.open(file_path, ios_base::out| ios_base::trunc | ios::binary); // append to file if exist
+				client_file_creation[header.connectionID] = true;
+			}
+			else
+				f.open(file_path, ios_base::app | ios::binary); // append to file if exist
 			int base = client_controller_map[header.connectionID] -> expectedSeqNum;
 			// find if there is a packet with sequence number starting from the expected seq number;
 			// if so, write to file and update: expected sequence number += payload size of this packet
