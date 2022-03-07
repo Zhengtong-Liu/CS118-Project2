@@ -68,8 +68,8 @@ int main(int argc, char* argv[])
 		struct addrinfo hints;
 		struct addrinfo *result, *rp;
 		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
-		hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_DGRAM;
 		hints.ai_flags = 0;
 		hints.ai_protocol = 0;  
 		hostname = true;
@@ -82,11 +82,11 @@ int main(int argc, char* argv[])
 		for (rp = result; rp != NULL; rp = rp->ai_next) {
 			if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1)
 			{
-				break;                  /* Success */
+				break;             
 			}
 		}
-		freeaddrinfo(result);           /* No longer needed */
-		if (rp == NULL) {               /* No address succeeded */
+		freeaddrinfo(result); 
+		if (rp == NULL) {
 			cerr << "ERROR: Wrong IP address" << endl;
 			exit(EXIT_FAILURE);
 		}
