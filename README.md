@@ -73,9 +73,10 @@ Server:
 
 * data structures: 	
     
-    unordered_map<int, ServerConnectionController*> client_controller_map; // keep track of each client's info, indentified by connection ID
-	unordered_map<int, bool> client_file_creation; // whether the file should be overwritten or appended
-	vector<int> deleted_clientID; // deleted clients' connection IDs
+        unordered_map<int, ServerConnectionController*> client_controller_map; // keep track of each client's info, indentified by connection ID
+        unordered_map<int, bool> client_file_creation; // whether the file should be overwritten or appended
+        vector<int> deleted_clientID; // deleted clients' connection IDs
+
 
 * implementation:
     In the while loop, (1) check the timers (shut down timer and retransmission timer), (2) recv messages and construct header and payload,
@@ -89,6 +90,8 @@ Client:
 
 (1) we did not know how to handle multiple clients at the server end, and were confused about how to sent the timer; we initially though 
 we should use multi-threading, but a loop with a unordered map storing each client's information proved to work
+
+(2)
 
 
 ## List of additional libraries
@@ -107,5 +110,5 @@ Client:
 
 ## Acknowledgement
 
-    We would like to thank our TA, Xinyu Ma, for offering much help in debugging; most of the code references
-    are example code provided by TAs in discussion and official documentation online
+We would like to thank our TA, Xinyu Ma, for offering much help in debugging; most of the code references
+are example code provided by TAs in discussion and official documentation online
