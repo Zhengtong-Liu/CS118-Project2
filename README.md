@@ -35,6 +35,8 @@ To dissect tcpdump-recorded file, you can use `-r <pcapfile>` option. For exampl
 
 Zhengtong Liu: Implement basic socket communication, file I/O, server (how to handle incoming packets and send back messages, out-of-order packets, multiple clients)
 
+Chenda Duan: Implement CWND window class and its functions, modified the file I/O functions, general input parsing (include the port number, hostname, etc). and general debug.
+
 ## High Level Design
 
 Helpers:
@@ -43,7 +45,7 @@ Helpers:
 
     ServerConnectionController -- store each client's information, including 
 
-        int ConnectionID;
+        		int ConnectionID;
 		unordered_map <int, char*> payload_map;
 		unordered_map <int, int> payload_length_map;
 		clock_t shut_down_timer;
@@ -63,10 +65,23 @@ Helpers:
 
 		CwndCnotroller* cwnd;
 
-    
-
+    CwndCnotroller -- Control the Cwnd Size for the client
+		int cwnd_size; // current cwnd window size
+		int ssthresh; // current ssthresh size
+		int max_cwnd; // max window allowed
+		int cum_ack; // newest cum ack received from server
+		get_cwnd_size(); // return current cwnd size
+		get_ssthresh(); // return current ssthresh size
+		recvACK() //receive the ACK, update the cwnd size accordingly
+		timeout() //time out, reset cwnd size and the ssthresh size
+		update_cumack(); // record the updated cumulative Ack number, to help determine the range of the CWND window.
 * Functions:
-
+    safeportSTOI -- try to catch conversion error if a given string version of the port number cannot be converted to a valid port number
+    getIntFromCharArr -- convert a decimal int variable into binary char array
+    setCharArrFromInt -- convert a binary char array into decimal int variable
+    ConstructMessage -- given the header class and the payload char array, convert the content into binary and put into the buffer to be sent
+    DeconstructMessage -- Given the buffer in binary, get the current header info
+    outputMessage -- given the header information, output to the stdout 
 
 
 Server: 
@@ -88,10 +103,10 @@ Client:
 
 ## Problems ran into
 
-(1) we did not know how to handle multiple clients at the server end, and were confused about how to sent the timer; we initially though 
+(1) we did not know how to handle multiple clients at the server end, and were confused about how to sent the timer; we initially thought 
 we should use multi-threading, but a loop with a unordered map storing each client's information proved to work
 
-(2)
+(2) we kept meeting index out of range problem from the test script, after debugging we find that it's simply some unnecessary output from our debugging msg that draws the problem
 
 
 ## List of additional libraries
