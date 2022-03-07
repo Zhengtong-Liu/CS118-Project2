@@ -31,10 +31,81 @@ To dissect tcpdump-recorded file, you can use `-r <pcapfile>` option. For exampl
 
     wireshark -X lua_script:./confundo.lua -r confundo.pcap
 
-## TODO
+## Contribution of each member
 
-    ###########################################################
-    ##                                                       ##
-    ## REPLACE CONTENT OF THIS FILE WITH YOUR PROJECT REPORT ##
-    ##                                                       ##
-    ###########################################################
+Zhengtong Liu: Implement basic socket communication, file I/O, server (how to handle incoming packets and send back messages, out-of-order packets, multiple clients)
+
+## High Level Design
+
+Helpers:
+
+* Classes:
+
+    ServerConnectionController -- store each client's information, including 
+
+        int ConnectionID;
+		unordered_map <int, char*> payload_map;
+		unordered_map <int, int> payload_length_map;
+		clock_t shut_down_timer;
+		clock_t retransmission_timer;
+		int expectedSeqNum;
+		int lastSentSeqNum;
+
+		bool sentSYN;
+		bool recvSYNACK;
+		bool sentFIN;
+		bool recvFINACK;
+
+		Header SYN_header;
+		Header FIN_header;
+
+		sockaddr_in client_addr_info;
+
+		CwndCnotroller* cwnd;
+
+    
+
+* Functions:
+
+
+
+Server: 
+
+* data structures: 	
+    
+    unordered_map<int, ServerConnectionController*> client_controller_map; // keep track of each client's info, indentified by connection ID
+	unordered_map<int, bool> client_file_creation; // whether the file should be overwritten or appended
+	vector<int> deleted_clientID; // deleted clients' connection IDs
+
+* implementation:
+    In the while loop, (1) check the timers (shut down timer and retransmission timer), (2) recv messages and construct header and payload,
+    (3) drop incorrect packets, (4) construct response messages and write to file; (5) send the response msg
+
+
+Client: 
+
+
+## Problems ran into
+
+(1) we did not know how to handle multiple clients at the server end, and were confused about how to sent the timer; we initially though 
+we should use multi-threading, but a loop with a unordered map storing each client's information proved to work
+
+
+## List of additional libraries
+
+Server (only part of used libraries):
+
+    #include <string>
+    #include <iostream>
+    #include <fstream>
+    #include <unordered_map>
+    #include <vector>
+    #include <ctime>
+
+Client:
+
+
+## Acknowledgement
+
+    We would like to thank our TA, Xinyu Ma, for offering much help in debugging; most of the code references
+    are example code provided by TAs in discussion and official documentation online
