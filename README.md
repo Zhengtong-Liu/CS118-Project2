@@ -44,7 +44,7 @@ Helpers:
 * Classes:
 
     ServerConnectionController -- store each client's information, including 
-
+		```cpp
         		int ConnectionID;
 		unordered_map <int, char*> payload_map;
 		unordered_map <int, int> payload_length_map;
@@ -64,25 +64,29 @@ Helpers:
 		sockaddr_in client_addr_info;
 
 		CwndCnotroller* cwnd;
+		```
 
     CwndCnotroller -- Control the Cwnd Size for the client
+		```cpp
 		int cwnd_size; // current cwnd window size
 		int ssthresh; // current ssthresh size
 		int max_cwnd; // max window allowed
 		int cum_ack; // newest cum ack received from server
-		get_cwnd_size(); // return current cwnd size
-		get_ssthresh(); // return current ssthresh size
-		recvACK() //receive the ACK, update the cwnd size accordingly
-		timeout() //time out, reset cwnd size and the ssthresh size
-		update_cumack(); // record the updated cumulative Ack number, to help determine the range of the CWND window.
+		int get_cwnd_size(); // return current cwnd size
+		int get_ssthresh(); // return current ssthresh size
+		void recvACK() //receive the ACK, update the cwnd size accordingly
+		void timeout() //time out, reset cwnd size and the ssthresh size
+		void update_cumack(); // record the updated cumulative Ack number, to help determine the range of the CWND window.
+		```
 * Functions:
-    safeportSTOI -- try to catch conversion error if a given string version of the port number cannot be converted to a valid port number
-    getIntFromCharArr -- convert a decimal int variable into binary char array
-    setCharArrFromInt -- convert a binary char array into decimal int variable
-    ConstructMessage -- given the header class and the payload char array, convert the content into binary and put into the buffer to be sent
-    DeconstructMessage -- Given the buffer in binary, get the current header info
-    outputMessage -- given the header information, output to the stdout 
-
+    ```cpp
+    int safeportSTOI(); // try to catch conversion error if a given string version of the port number cannot be converted to a valid port number
+    int getIntFromCharArr(); // convert a decimal int variable into binary char array
+    void setCharArrFromInt(); // convert a binary char array into decimal int variable
+    void ConstructMessage(); // given the header class and the payload char array, convert the content into binary and put into the buffer to be sent
+    void DeconstructMessage(); // Given the buffer in binary, get the current header info
+    void outputMessage();  // given the header information, output to the stdout 
+    ```
 
 Server: 
 
